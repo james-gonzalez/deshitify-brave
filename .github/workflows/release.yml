@@ -1,0 +1,29 @@
+name: Release and Publish
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Release and Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Syntax check
+        run: bash -n deshitify-brave.sh
+
+      - name: Run Semantic Release
+        uses: cycjimmy/semantic-release-action@v6.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

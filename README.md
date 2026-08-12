@@ -106,6 +106,15 @@ This deletes the policy file and flushes macOS's preference cache
 - Brave Browser
 - `sudo` access (the Managed Preferences directory is root-owned)
 
+## Versioning & releases
+
+Releases are automated with [semantic-release](https://semantic-release.gitbook.io/),
+using its default [Angular commit convention](https://github.com/conventional-changelog/commitlint/tree/master/%40commitlint/config-angular#type-enum)
+(a flavor of [Conventional Commits](https://www.conventionalcommits.org/)).
+Every push to `main` is scanned for commit types, and if there's a releasable
+change, a GitHub Release and tag are cut automatically with
+`deshitify-brave.sh` attached as a downloadable asset.
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).

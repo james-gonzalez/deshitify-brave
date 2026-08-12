@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Syntax check
+        run: bash -n deshitify-brave.sh
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: '.'
+          severity: warning
+
+      - name: Dry-run smoke test (non-macOS guard)
+        run: |
+          # Should fail cleanly with a friendly message on non-macOS runners.
+          if ./deshitify-brave.sh --dry-run; then
+            echo "Expected the macOS guard to reject a non-Darwin runner" >&2
+            exit 1
+          fi
