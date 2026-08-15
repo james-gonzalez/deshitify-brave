@@ -30,3 +30,29 @@ jobs:
             echo "Expected the macOS guard to reject a non-Darwin runner" >&2
             exit 1
           fi
+
+  lint-windows:
+    name: PSScriptAnalyzer
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Syntax check
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("deshitify-brave.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          $results = Invoke-ScriptAnalyzer -Path deshitify-brave.ps1 -Severity Warning
+          $results | Format-Table -AutoSize
+          if ($results) { exit 1 }
+
+      - name: Dry-run smoke test
+        shell: pwsh
+        run: .\deshitify-brave.ps1 -DryRun

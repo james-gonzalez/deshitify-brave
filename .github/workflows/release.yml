@@ -23,6 +23,13 @@ jobs:
       - name: Syntax check
         run: bash -n deshitify-brave.sh
 
+      - name: Syntax check (PowerShell)
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("deshitify-brave.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+
       - name: Run Semantic Release
         uses: cycjimmy/semantic-release-action@v6.0.0
         env:

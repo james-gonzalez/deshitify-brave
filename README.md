@@ -1,15 +1,17 @@
 # deshitify-brave
 
-A macOS script that strips Brave Browser's upsell nags (Rewards, Wallet, VPN,
-Leo AI, News) and quietly plugs a few privacy leaks (telemetry, WebRTC IP
-leaks, keystroke-leaking search suggestions) — all via Chromium's managed
-policy mechanism, the same one MDM uses. No MDM required.
+Scripts (macOS + Windows) that strip Brave Browser's upsell nags (Rewards,
+Wallet, VPN, Leo AI, News) and quietly plug a few privacy leaks (telemetry,
+WebRTC IP leaks, keystroke-leaking search suggestions) — all via Chromium's
+managed policy mechanism, the same one MDM/GPO uses. No MDM/GPO required.
 
 Policy-managed settings show up as "managed by your organization" and are
 greyed out in `brave://settings` — that's expected, it's how policy
 enforcement works.
 
 ## Usage
+
+**macOS** (`deshitify-brave.sh`):
 
 ```bash
 ./deshitify-brave.sh                # apply core + privacy + leak + performance policies
@@ -21,6 +23,20 @@ enforcement works.
 You'll be prompted for your password — writing to macOS's Managed
 Preferences directory requires `sudo`. At the end, the script offers to quit
 and relaunch Brave for you.
+
+**Windows** (`deshitify-brave.ps1`):
+
+```powershell
+.\deshitify-brave.ps1                # apply core + privacy + leak + performance policies
+.\deshitify-brave.ps1 -Aggressive    # also disable sync, autofill, password manager, translate
+.\deshitify-brave.ps1 -DryRun        # print the registry values that would be written, change nothing
+.\deshitify-brave.ps1 -Undo          # remove the managed policy, restore stock Brave
+```
+
+Writing to `HKEY_LOCAL_MACHINE` needs Administrator — the script relaunches
+itself elevated (a UAC prompt) if it isn't already. At the end, it offers to
+quit and relaunch Brave for you. If script execution is blocked, run once
+with `powershell -ExecutionPolicy Bypass -File .\deshitify-brave.ps1`.
 
 Verify it worked by opening `brave://policy` in Brave — every listed key
 should show status **OK**.
@@ -79,19 +95,29 @@ some people rely on day to day, so they're off unless you ask for them:
 ## How it works
 
 Brave is built on Chromium, which supports "managed policy" configuration —
-normally pushed by MDM in a corporate environment, but readable from a
-plain plist file too. This script writes one to:
+normally pushed by MDM/GPO in a corporate environment, but readable from a
+plain file too.
+
+On **macOS**, the script writes a plist to:
 
 ```
 /Library/Managed Preferences/<you>/com.brave.Browser.plist
 ```
 
-Brave reads this on launch and enforces whatever's in it, regardless of what
-you'd otherwise set in `brave://settings`. See Brave's own docs on
+On **Windows**, the script writes DWORD/String values under:
+
+```
+HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave
+```
+
+Brave reads these on launch and enforces whatever's in them, regardless of
+what you'd otherwise set in `brave://settings`. See Brave's own docs on
 [Group Policy](https://support.brave.app/hc/en-us/articles/360039248271-Group-Policy)
 for the full list of supported policies.
 
 ## Undoing it
+
+**macOS**:
 
 ```bash
 ./deshitify-brave.sh --undo
@@ -100,11 +126,27 @@ for the full list of supported policies.
 This deletes the policy file and flushes macOS's preference cache
 (`cfprefsd`), handing full control back to `brave://settings`.
 
+**Windows**:
+
+```powershell
+.\deshitify-brave.ps1 -Undo
+```
+
+This removes the values the script wrote from the registry (dropping the
+key too if nothing else uses it), handing full control back to
+`brave://settings`.
+
 ## Requirements
 
+**macOS**:
 - macOS
 - Brave Browser
 - `sudo` access (the Managed Preferences directory is root-owned)
+
+**Windows**:
+- Windows
+- Brave Browser
+- Administrator access (`HKEY_LOCAL_MACHINE` is machine-wide)
 
 ## Versioning & releases
 
@@ -113,7 +155,7 @@ using its default [Angular commit convention](https://github.com/conventional-ch
 (a flavor of [Conventional Commits](https://www.conventionalcommits.org/)).
 Every push to `main` is scanned for commit types, and if there's a releasable
 change, a GitHub Release and tag are cut automatically with
-`deshitify-brave.sh` attached as a downloadable asset.
+`deshitify-brave.sh` and `deshitify-brave.ps1` attached as downloadable assets.
 
 ## License
 
