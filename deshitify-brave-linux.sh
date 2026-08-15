@@ -57,12 +57,18 @@ if [[ "$(uname)" != "Linux" ]]; then
   exit 1
 fi
 
+BRAVE_BIN=""
+for candidate in brave-browser brave-browser-stable brave; do
+  if command -v "$candidate" >/dev/null 2>&1; then
+    BRAVE_BIN="$candidate"
+    break
+  fi
+done
 BRAVE_FOUND=0
-command -v brave-browser >/dev/null 2>&1 && BRAVE_FOUND=1
-command -v brave-browser-stable >/dev/null 2>&1 && BRAVE_FOUND=1
+[[ -n "$BRAVE_BIN" ]] && BRAVE_FOUND=1
 command -v flatpak >/dev/null 2>&1 && flatpak info "$FLATPAK_ID" >/dev/null 2>&1 && BRAVE_FOUND=1
 if [[ "$BRAVE_FOUND" -eq 0 ]]; then
-  echo "Warning: Brave Browser not found (checked brave-browser, brave-browser-stable, flatpak). Continuing anyway —" >&2
+  echo "Warning: Brave Browser not found (checked brave-browser, brave-browser-stable, brave, flatpak). Continuing anyway —" >&2
   echo "the policy will apply the next time Brave is installed/launched." >&2
 fi
 
@@ -196,14 +202,14 @@ if pgrep -x "brave" >/dev/null 2>&1 || pgrep -x "brave-browser" >/dev/null 2>&1;
   if [[ "$REPLY" =~ ^[Yy]$ ]]; then
     pkill -x brave 2>/dev/null || pkill -x brave-browser 2>/dev/null || true
     sleep 1
-    if command -v brave-browser >/dev/null 2>&1; then
-      nohup brave-browser >/dev/null 2>&1 &
+    if [[ -n "$BRAVE_BIN" ]]; then
+      nohup "$BRAVE_BIN" >/dev/null 2>&1 &
       disown
     elif command -v flatpak >/dev/null 2>&1 && flatpak info "$FLATPAK_ID" >/dev/null 2>&1; then
       nohup flatpak run "$FLATPAK_ID" >/dev/null 2>&1 &
       disown
     else
-      echo "Warning: couldn't find brave-browser to relaunch — start it yourself." >&2
+      echo "Warning: couldn't find Brave's executable to relaunch — start it yourself." >&2
     fi
   fi
 fi
