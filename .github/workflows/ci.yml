@@ -15,7 +15,9 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Syntax check
-        run: bash -n deshitify-brave.sh
+        run: |
+          bash -n deshitify-brave.sh
+          bash -n deshitify-brave-linux.sh
 
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@2.0.0
@@ -30,6 +32,11 @@ jobs:
             echo "Expected the macOS guard to reject a non-Darwin runner" >&2
             exit 1
           fi
+
+      - name: Dry-run smoke test (Linux)
+        run: |
+          ./deshitify-brave-linux.sh --dry-run
+          ./deshitify-brave-linux.sh --dry-run --aggressive | tail -n +3 | python3 -m json.tool > /dev/null
 
   lint-windows:
     name: PSScriptAnalyzer
@@ -49,7 +56,11 @@ jobs:
         shell: pwsh
         run: |
           Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
-          $results = Invoke-ScriptAnalyzer -Path deshitify-brave.ps1 -Severity Warning
+          # Write-Host is intentional here (interactive CLI tool, not a pipeline function).
+          # BOM-less UTF-8 is intentional too — Windows PowerShell 5.1 still reads it fine
+          # since the file has no BOM-dependent parsing, and BOMs break POSIX tools/git diffs.
+          $results = Invoke-ScriptAnalyzer -Path deshitify-brave.ps1 -Severity Warning `
+            -ExcludeRule PSAvoidUsingWriteHost, PSUseBOMForUnicodeEncodedFile
           $results | Format-Table -AutoSize
           if ($results) { exit 1 }
 

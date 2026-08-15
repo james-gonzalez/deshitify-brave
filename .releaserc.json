@@ -8,7 +8,8 @@
       {
         "assets": [
           { "path": "deshitify-brave.sh", "label": "deshitify-brave.sh" },
-          { "path": "deshitify-brave.ps1", "label": "deshitify-brave.ps1" }
+          { "path": "deshitify-brave.ps1", "label": "deshitify-brave.ps1" },
+          { "path": "deshitify-brave-linux.sh", "label": "deshitify-brave-linux.sh" }
         ]
       }
     ]

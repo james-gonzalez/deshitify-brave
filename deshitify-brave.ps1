@@ -178,7 +178,7 @@ if ($Undo) {
         $removed = 0
         $existing = Get-Item $PolicyKey
         foreach ($name in $ManagedNames) {
-            if ($existing.GetValue($name, $null) -ne $null) {
+            if ($null -ne $existing.GetValue($name, $null)) {
                 Remove-ItemProperty -Path $PolicyKey -Name $name
                 $removed++
             }

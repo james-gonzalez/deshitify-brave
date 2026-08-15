@@ -1,6 +1,6 @@
 # deshitify-brave
 
-Scripts (macOS + Windows) that strip Brave Browser's upsell nags (Rewards,
+Scripts (macOS + Windows + Linux) that strip Brave Browser's upsell nags (Rewards,
 Wallet, VPN, Leo AI, News) and quietly plug a few privacy leaks (telemetry,
 WebRTC IP leaks, keystroke-leaking search suggestions) — all via Chromium's
 managed policy mechanism, the same one MDM/GPO uses. No MDM/GPO required.
@@ -37,6 +37,21 @@ Writing to `HKEY_LOCAL_MACHINE` needs Administrator — the script relaunches
 itself elevated (a UAC prompt) if it isn't already. At the end, it offers to
 quit and relaunch Brave for you. If script execution is blocked, run once
 with `powershell -ExecutionPolicy Bypass -File .\deshitify-brave.ps1`.
+
+**Linux** (`deshitify-brave-linux.sh`):
+
+```bash
+./deshitify-brave-linux.sh                # apply core + privacy + leak + performance policies
+./deshitify-brave-linux.sh --aggressive   # also disable sync, autofill, password manager, translate
+./deshitify-brave-linux.sh --dry-run      # print the JSON that would be written, change nothing
+./deshitify-brave-linux.sh --undo         # remove the managed policy, restore stock Brave
+./deshitify-brave-linux.sh --flatpak      # also grant a Flatpak install read access to the policy dir
+```
+
+You'll be prompted for your password — writing to `/etc/brave/policies/managed/`
+requires `sudo`. At the end, the script offers to quit and relaunch Brave for
+you. Flatpak's sandbox can't see `/etc` by default, so add `--flatpak` (with
+`--undo --flatpak` to revert) if you installed Brave that way.
 
 Verify it worked by opening `brave://policy` in Brave — every listed key
 should show status **OK**.
@@ -110,6 +125,12 @@ On **Windows**, the script writes DWORD/String values under:
 HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave
 ```
 
+On **Linux**, the script writes a JSON file to:
+
+```
+/etc/brave/policies/managed/deshitify-brave.json
+```
+
 Brave reads these on launch and enforces whatever's in them, regardless of
 what you'd otherwise set in `brave://settings`. See Brave's own docs on
 [Group Policy](https://support.brave.app/hc/en-us/articles/360039248271-Group-Policy)
@@ -136,6 +157,15 @@ This removes the values the script wrote from the registry (dropping the
 key too if nothing else uses it), handing full control back to
 `brave://settings`.
 
+**Linux**:
+
+```bash
+./deshitify-brave-linux.sh --undo
+```
+
+This deletes the policy file, handing full control back to
+`brave://settings`.
+
 ## Requirements
 
 **macOS**:
@@ -148,6 +178,11 @@ key too if nothing else uses it), handing full control back to
 - Brave Browser
 - Administrator access (`HKEY_LOCAL_MACHINE` is machine-wide)
 
+**Linux**:
+- Linux
+- Brave Browser (native package, or Flatpak with `--flatpak`)
+- `sudo` access (`/etc/brave/policies/managed/` is root-owned)
+
 ## Versioning & releases
 
 Releases are automated with [semantic-release](https://semantic-release.gitbook.io/),
@@ -155,7 +190,8 @@ using its default [Angular commit convention](https://github.com/conventional-ch
 (a flavor of [Conventional Commits](https://www.conventionalcommits.org/)).
 Every push to `main` is scanned for commit types, and if there's a releasable
 change, a GitHub Release and tag are cut automatically with
-`deshitify-brave.sh` and `deshitify-brave.ps1` attached as downloadable assets.
+`deshitify-brave.sh`, `deshitify-brave.ps1`, and `deshitify-brave-linux.sh`
+attached as downloadable assets.
 
 ## License
 

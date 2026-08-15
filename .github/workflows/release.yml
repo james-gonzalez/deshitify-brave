@@ -21,7 +21,9 @@ jobs:
           fetch-depth: 0
 
       - name: Syntax check
-        run: bash -n deshitify-brave.sh
+        run: |
+          bash -n deshitify-brave.sh
+          bash -n deshitify-brave-linux.sh
 
       - name: Syntax check (PowerShell)
         shell: pwsh
