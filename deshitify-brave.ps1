@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     deshitify-brave.ps1 — turn off Brave's built-in nags, upsells, and telemetry
     on Windows via Chromium managed-policy support (the same mechanism GPO uses).

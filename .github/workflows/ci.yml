@@ -57,13 +57,15 @@ jobs:
         run: |
           Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
           # Write-Host is intentional here (interactive CLI tool, not a pipeline function).
-          # BOM-less UTF-8 is intentional too — Windows PowerShell 5.1 still reads it fine
-          # since the file has no BOM-dependent parsing, and BOMs break POSIX tools/git diffs.
           $results = Invoke-ScriptAnalyzer -Path deshitify-brave.ps1 -Severity Warning `
-            -ExcludeRule PSAvoidUsingWriteHost, PSUseBOMForUnicodeEncodedFile
+            -ExcludeRule PSAvoidUsingWriteHost
           $results | Format-Table -AutoSize
           if ($results) { exit 1 }
 
-      - name: Dry-run smoke test
+      - name: Dry-run smoke test (pwsh)
         shell: pwsh
+        run: .\deshitify-brave.ps1 -DryRun
+
+      - name: Dry-run smoke test (Windows PowerShell 5.1)
+        shell: powershell
         run: .\deshitify-brave.ps1 -DryRun
