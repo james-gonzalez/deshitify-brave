@@ -18,6 +18,10 @@
 .PARAMETER Aggressive
     Also disable sync, autofill, password manager, and translate.
 
+.PARAMETER Paranoid
+    Also harden: disable Tor windows, Google Cast, third-party cookies, Google
+    sign-in, and payment-method probing, and force HTTPS-only mode.
+
 .PARAMETER DryRun
     Print the registry values that would be written, change nothing.
 
@@ -29,6 +33,8 @@
 .EXAMPLE
     .\deshitify-brave.ps1 -Aggressive
 .EXAMPLE
+    .\deshitify-brave.ps1 -Paranoid
+.EXAMPLE
     .\deshitify-brave.ps1 -DryRun
 .EXAMPLE
     .\deshitify-brave.ps1 -Undo
@@ -37,6 +43,7 @@
 [CmdletBinding()]
 param(
     [switch]$Aggressive,
+    [switch]$Paranoid,
     [switch]$DryRun,
     [switch]$Undo,
     # Internal: set when the script re-launched itself elevated, so the new
@@ -61,18 +68,32 @@ $CoreKeys = [ordered]@{
     BraveWaybackMachineEnabled = @{ Type = 'DWord'; Value = 0 }
 }
 
-# --- Privacy: stop the phone-home pings (P3A "anonymous" telemetry, stats ping, web discovery, Chromium metrics)
+# --- Privacy: stop the phone-home pings (P3A "anonymous" telemetry, stats ping, web discovery, Chromium metrics,
+# URL-keyed data collection, Google spell check, feedback reports, Safe Browsing extended reporting,
+# domain-reliability uploads, Privacy Sandbox ad APIs, shopping list/price tracking)
 $PrivacyKeys = [ordered]@{
-    BraveP3AEnabled          = @{ Type = 'DWord'; Value = 0 }
-    BraveStatsPingEnabled    = @{ Type = 'DWord'; Value = 0 }
-    BraveWebDiscoveryEnabled = @{ Type = 'DWord'; Value = 0 }
-    MetricsReportingEnabled  = @{ Type = 'DWord'; Value = 0 }
+    BraveP3AEnabled                         = @{ Type = 'DWord'; Value = 0 }
+    BraveStatsPingEnabled                   = @{ Type = 'DWord'; Value = 0 }
+    BraveWebDiscoveryEnabled                = @{ Type = 'DWord'; Value = 0 }
+    MetricsReportingEnabled                 = @{ Type = 'DWord'; Value = 0 }
+    UrlKeyedAnonymizedDataCollectionEnabled = @{ Type = 'DWord'; Value = 0 }
+    SpellCheckServiceEnabled                = @{ Type = 'DWord'; Value = 0 }
+    UserFeedbackAllowed                     = @{ Type = 'DWord'; Value = 0 }
+    SafeBrowsingExtendedReportingEnabled    = @{ Type = 'DWord'; Value = 0 }
+    DomainReliabilityAllowed                = @{ Type = 'DWord'; Value = 0 }
+    PrivacySandboxAdTopicsEnabled           = @{ Type = 'DWord'; Value = 0 }
+    PrivacySandboxSiteEnabledAdsEnabled     = @{ Type = 'DWord'; Value = 0 }
+    PrivacySandboxAdMeasurementEnabled      = @{ Type = 'DWord'; Value = 0 }
+    ShoppingListEnabled                     = @{ Type = 'DWord'; Value = 0 }
 }
 
-# --- Nag suppression: standard Chromium policy for "what's new" pages after OS upgrades
-# (PromotionalTabsEnabled was dropped upstream — Brave now reports it "Deprecated", so it's omitted)
+# --- Nag suppression: standard Chromium policies for "what's new" pages after OS upgrades, the
+# default-browser prompt, and promotional content (PromotionalTabsEnabled was dropped upstream —
+# Brave now reports it "Deprecated" — so its replacement PromotionsEnabled is used instead)
 $NagKeys = [ordered]@{
     WelcomePageOnOSUpgradeEnabled = @{ Type = 'DWord'; Value = 0 }
+    DefaultBrowserSettingEnabled  = @{ Type = 'DWord'; Value = 0 }
+    PromotionsEnabled             = @{ Type = 'DWord'; Value = 0 }
 }
 
 # --- Leak plugging: stop small background data leaks (keystrokes to search engine, error-page
@@ -101,6 +122,17 @@ $AggressiveKeys = [ordered]@{
     TranslateEnabled         = @{ Type = 'DWord'; Value = 0 }
 }
 
+# --- Paranoid (opt-in): hardening that changes behaviour you'll notice (no Tor windows, no
+# Chromecast, sites relying on third-party cookies break, plain-HTTP sites need a click-through)
+$ParanoidKeys = [ordered]@{
+    TorDisabled               = @{ Type = 'DWord'; Value = 1 }
+    EnableMediaRouter         = @{ Type = 'DWord'; Value = 0 }
+    BlockThirdPartyCookies    = @{ Type = 'DWord'; Value = 1 }
+    HttpsOnlyMode             = @{ Type = 'String'; Value = 'force_enabled' }
+    PaymentMethodQueryEnabled = @{ Type = 'DWord'; Value = 0 }
+    BrowserSignin             = @{ Type = 'DWord'; Value = 0 }
+}
+
 $Policies = [ordered]@{}
 foreach ($set in @($CoreKeys, $PrivacyKeys, $NagKeys, $LeakKeys, $PerfKeys)) {
     foreach ($name in $set.Keys) { $Policies[$name] = $set[$name] }
@@ -108,11 +140,15 @@ foreach ($set in @($CoreKeys, $PrivacyKeys, $NagKeys, $LeakKeys, $PerfKeys)) {
 if ($Aggressive) {
     foreach ($name in $AggressiveKeys.Keys) { $Policies[$name] = $AggressiveKeys[$name] }
 }
+if ($Paranoid) {
+    foreach ($name in $ParanoidKeys.Keys) { $Policies[$name] = $ParanoidKeys[$name] }
+}
 
-# -Undo removes every value the script can write, aggressive ones included, so a
-# plain -Undo fully reverses a previous -Aggressive run.
+# -Undo removes every value the script can write, opt-in ones included, so a
+# plain -Undo fully reverses a previous -Aggressive/-Paranoid run.
 $ManagedNames = @($CoreKeys.Keys) + @($PrivacyKeys.Keys) + @($NagKeys.Keys) +
-                @($LeakKeys.Keys) + @($PerfKeys.Keys) + @($AggressiveKeys.Keys)
+                @($LeakKeys.Keys) + @($PerfKeys.Keys) + @($AggressiveKeys.Keys) +
+                @($ParanoidKeys.Keys)
 
 function Format-RegValue {
     param($Spec)
@@ -163,6 +199,7 @@ if (-not (Test-Administrator)) {
     Write-Host 'This needs Administrator (the policy lives in HKEY_LOCAL_MACHINE). Re-launching elevated...'
     $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-Elevated')
     if ($Aggressive) { $psArgs += '-Aggressive' }
+    if ($Paranoid) { $psArgs += '-Paranoid' }
     if ($Undo) { $psArgs += '-Undo' }
     try {
         $proc = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList $psArgs -Verb RunAs -PassThru -Wait
@@ -211,6 +248,9 @@ if ($Aggressive) {
     Write-Host 'Mode: aggressive (sync, autofill, password manager, translate also disabled)'
 } else {
     Write-Host 'Mode: core (re-run with -Aggressive to also disable sync/autofill/password manager/translate)'
+}
+if ($Paranoid) {
+    Write-Host 'Paranoid: on (Tor, Cast, third-party cookies, Google sign-in, payment probing off; HTTPS forced)'
 }
 Write-Host ''
 Write-Host 'Quit and reopen Brave, then check brave://policy to confirm.'

@@ -16,6 +16,7 @@ enforcement works.
 ```bash
 ./deshitify-brave.sh                # apply core + privacy + leak + performance policies
 ./deshitify-brave.sh --aggressive   # also disable sync, autofill, password manager, translate
+./deshitify-brave.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
 ./deshitify-brave.sh --dry-run      # print the plist that would be written, change nothing
 ./deshitify-brave.sh --undo         # remove the managed policy, restore stock Brave
 ```
@@ -29,6 +30,7 @@ and relaunch Brave for you.
 ```powershell
 .\deshitify-brave.ps1                # apply core + privacy + leak + performance policies
 .\deshitify-brave.ps1 -Aggressive    # also disable sync, autofill, password manager, translate
+.\deshitify-brave.ps1 -Paranoid      # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
 .\deshitify-brave.ps1 -DryRun        # print the registry values that would be written, change nothing
 .\deshitify-brave.ps1 -Undo          # remove the managed policy, restore stock Brave
 ```
@@ -43,6 +45,7 @@ with `powershell -ExecutionPolicy Bypass -File .\deshitify-brave.ps1`.
 ```bash
 ./deshitify-brave-linux.sh                # apply core + privacy + leak + performance policies
 ./deshitify-brave-linux.sh --aggressive   # also disable sync, autofill, password manager, translate
+./deshitify-brave-linux.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
 ./deshitify-brave-linux.sh --dry-run      # print the JSON that would be written, change nothing
 ./deshitify-brave-linux.sh --undo         # remove the managed policy, restore stock Brave
 ./deshitify-brave-linux.sh --flatpak      # also grant a Flatpak install read access to the policy dir
@@ -77,11 +80,22 @@ should show status **OK**.
 | Install/usage stats ping | `BraveStatsPingEnabled` |
 | Web Discovery data collection | `BraveWebDiscoveryEnabled` |
 | Chromium crash/metrics reporting | `MetricsReportingEnabled` |
+| URL-keyed "anonymized" data collection | `UrlKeyedAnonymizedDataCollectionEnabled` |
+| Google web spell check (local spell check still works) | `SpellCheckServiceEnabled` |
+| Feedback reports with screenshots/system info | `UserFeedbackAllowed` |
+| Safe Browsing extended reporting to Google | `SafeBrowsingExtendedReportingEnabled` |
+| Domain-reliability uploads to Google | `DomainReliabilityAllowed` |
+| Privacy Sandbox ad topics | `PrivacySandboxAdTopicsEnabled` |
+| Privacy Sandbox site-suggested ads | `PrivacySandboxSiteEnabledAdsEnabled` |
+| Privacy Sandbox ad measurement | `PrivacySandboxAdMeasurementEnabled` |
+| Shopping list / price tracking | `ShoppingListEnabled` |
 
 **Nags** (always applied)
 | What it stops | Policy |
 | --- | --- |
 | "What's new" page after OS/browser upgrades | `WelcomePageOnOSUpgradeEnabled` |
+| "Make Brave your default browser" prompt | `DefaultBrowserSettingEnabled` |
+| Promotional content and tabs | `PromotionsEnabled` |
 
 **Data leaks** (always applied)
 | What it stops | Policy |
@@ -106,6 +120,22 @@ some people rely on day to day, so they're off unless you ask for them:
 | Address autofill | `AutofillAddressEnabled` |
 | Credit card autofill | `AutofillCreditCardEnabled` |
 | Translate | `TranslateEnabled` |
+
+**Paranoid, opt-in only** (`--paranoid`) — hardening that changes behaviour
+you'll notice, so it's off unless you ask for it. Combine with `--aggressive`
+for both:
+| What it does | Policy |
+| --- | --- |
+| Disables Tor windows | `TorDisabled` |
+| Disables Google Cast / LAN device probing (kills Chromecast) | `EnableMediaRouter` |
+| Blocks third-party cookies | `BlockThirdPartyCookies` |
+| Forces HTTPS-only mode | `HttpsOnlyMode` |
+| Stops sites probing for saved payment methods | `PaymentMethodQueryEnabled` |
+| Disables Google sign-in integration | `BrowserSignin` |
+
+**Deliberately left alone**: component updates, ad-block list fetches, and
+Safe Browsing list downloads still reach Brave's/Google's servers — blocking
+them would stop Brave keeping its protections up to date.
 
 ## How it works
 

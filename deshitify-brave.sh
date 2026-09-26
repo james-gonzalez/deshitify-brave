@@ -6,6 +6,7 @@
 # Usage:
 #   ./deshitify-brave.sh                # apply core + privacy policies
 #   ./deshitify-brave.sh --aggressive   # also disable sync/autofill/password manager/translate
+#   ./deshitify-brave.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
 #   ./deshitify-brave.sh --dry-run      # print the plist that would be written, change nothing
 #   ./deshitify-brave.sh --undo         # remove the managed policy and restore defaults
 #
@@ -31,14 +32,16 @@ POLICY_FILE="${POLICY_DIR}/${BUNDLE_ID}.plist"
 DRY_RUN=0
 UNDO=0
 AGGRESSIVE=0
+PARANOID=0
 
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --undo) UNDO=1 ;;
     --aggressive) AGGRESSIVE=1 ;;
+    --paranoid) PARANOID=1 ;;
     -h|--help)
-      sed -n '2,20p' "$0"
+      sed -n '2,21p' "$0"
       exit 0
       ;;
     *)
@@ -91,7 +94,9 @@ CORE_KEYS=$(cat <<'EOF'
 EOF
 )
 
-# --- Privacy: stop the phone-home pings (P3A "anonymous" telemetry, stats ping, web discovery, Chromium metrics)
+# --- Privacy: stop the phone-home pings (P3A "anonymous" telemetry, stats ping, web discovery, Chromium metrics,
+# URL-keyed data collection, Google spell check, feedback reports, Safe Browsing extended reporting,
+# domain-reliability uploads, Privacy Sandbox ad APIs, shopping list/price tracking)
 PRIVACY_KEYS=$(cat <<'EOF'
     <key>BraveP3AEnabled</key>
     <false/>
@@ -101,13 +106,36 @@ PRIVACY_KEYS=$(cat <<'EOF'
     <false/>
     <key>MetricsReportingEnabled</key>
     <false/>
+    <key>UrlKeyedAnonymizedDataCollectionEnabled</key>
+    <false/>
+    <key>SpellCheckServiceEnabled</key>
+    <false/>
+    <key>UserFeedbackAllowed</key>
+    <false/>
+    <key>SafeBrowsingExtendedReportingEnabled</key>
+    <false/>
+    <key>DomainReliabilityAllowed</key>
+    <false/>
+    <key>PrivacySandboxAdTopicsEnabled</key>
+    <false/>
+    <key>PrivacySandboxSiteEnabledAdsEnabled</key>
+    <false/>
+    <key>PrivacySandboxAdMeasurementEnabled</key>
+    <false/>
+    <key>ShoppingListEnabled</key>
+    <false/>
 EOF
 )
 
-# --- Nag suppression: standard Chromium policy for "what's new" pages after OS upgrades
-# (PromotionalTabsEnabled was dropped upstream — Brave now reports it "Deprecated", so it's omitted)
+# --- Nag suppression: standard Chromium policies for "what's new" pages after OS upgrades, the
+# default-browser prompt, and promotional content (PromotionalTabsEnabled was dropped upstream —
+# Brave now reports it "Deprecated" — so its replacement PromotionsEnabled is used instead)
 NAG_KEYS=$(cat <<'EOF'
     <key>WelcomePageOnOSUpgradeEnabled</key>
+    <false/>
+    <key>DefaultBrowserSettingEnabled</key>
+    <false/>
+    <key>PromotionsEnabled</key>
     <false/>
 EOF
 )
@@ -152,6 +180,24 @@ AGGRESSIVE_KEYS=$(cat <<'EOF'
 EOF
 )
 
+# --- Paranoid (opt-in): hardening that changes behaviour you'll notice (no Tor windows, no
+# Chromecast, sites relying on third-party cookies break, plain-HTTP sites need a click-through)
+PARANOID_KEYS=$(cat <<'EOF'
+    <key>TorDisabled</key>
+    <true/>
+    <key>EnableMediaRouter</key>
+    <false/>
+    <key>BlockThirdPartyCookies</key>
+    <true/>
+    <key>HttpsOnlyMode</key>
+    <string>force_enabled</string>
+    <key>PaymentMethodQueryEnabled</key>
+    <false/>
+    <key>BrowserSignin</key>
+    <integer>0</integer>
+EOF
+)
+
 BODY="${CORE_KEYS}
 ${PRIVACY_KEYS}
 ${NAG_KEYS}
@@ -161,6 +207,11 @@ ${PERF_KEYS}"
 if [[ "$AGGRESSIVE" -eq 1 ]]; then
   BODY="${BODY}
 ${AGGRESSIVE_KEYS}"
+fi
+
+if [[ "$PARANOID" -eq 1 ]]; then
+  BODY="${BODY}
+${PARANOID_KEYS}"
 fi
 
 PLIST_CONTENT=$(cat <<EOF
@@ -194,6 +245,9 @@ if [[ "$AGGRESSIVE" -eq 1 ]]; then
   echo "Mode: aggressive (sync, autofill, password manager, translate also disabled)"
 else
   echo "Mode: core (re-run with --aggressive to also disable sync/autofill/password manager/translate)"
+fi
+if [[ "$PARANOID" -eq 1 ]]; then
+  echo "Paranoid: on (Tor, Cast, third-party cookies, Google sign-in, payment probing off; HTTPS forced)"
 fi
 echo
 echo "Quit and reopen Brave, then check brave://policy to confirm."
