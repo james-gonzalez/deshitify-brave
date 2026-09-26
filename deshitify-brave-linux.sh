@@ -6,7 +6,8 @@
 #
 # Usage:
 #   ./deshitify-brave-linux.sh                # apply core + privacy policies
-#   ./deshitify-brave-linux.sh --aggressive   # also disable sync/autofill/password manager/translate
+#   ./deshitify-brave-linux.sh --aggressive   # also disable sync/autofill/password manager/translate, enable Memory Saver
+#   ./deshitify-brave-linux.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
 #   ./deshitify-brave-linux.sh --dry-run      # print the JSON that would be written, change nothing
 #   ./deshitify-brave-linux.sh --undo         # remove the managed policy and restore defaults
 #
@@ -33,6 +34,7 @@ FLATPAK_ID="com.brave.Browser"
 DRY_RUN=0
 UNDO=0
 AGGRESSIVE=0
+PARANOID=0
 FLATPAK=0
 
 for arg in "$@"; do
@@ -40,9 +42,10 @@ for arg in "$@"; do
     --dry-run) DRY_RUN=1 ;;
     --undo) UNDO=1 ;;
     --aggressive) AGGRESSIVE=1 ;;
+    --paranoid) PARANOID=1 ;;
     --flatpak) FLATPAK=1 ;;
     -h|--help)
-      sed -n '2,22p' "$0"
+      sed -n '2,23p' "$0"
       exit 0
       ;;
     *)
@@ -100,19 +103,34 @@ CORE_KEYS=$(cat <<'CORE_JSON'
 CORE_JSON
 )
 
-# --- Privacy: stop the phone-home pings (P3A "anonymous" telemetry, stats ping, web discovery, Chromium metrics)
+# --- Privacy: stop the phone-home pings (P3A "anonymous" telemetry, stats ping, web discovery, Chromium metrics,
+# URL-keyed data collection, Google spell check, feedback reports, Safe Browsing extended reporting,
+# domain-reliability uploads, Privacy Sandbox ad APIs, shopping list/price tracking)
 PRIVACY_KEYS=$(cat <<'PRIVACY_JSON'
   "BraveP3AEnabled": false,
   "BraveStatsPingEnabled": false,
   "BraveWebDiscoveryEnabled": false,
   "MetricsReportingEnabled": false,
+  "UrlKeyedAnonymizedDataCollectionEnabled": false,
+  "SpellCheckServiceEnabled": false,
+  "UserFeedbackAllowed": false,
+  "SafeBrowsingExtendedReportingEnabled": false,
+  "DomainReliabilityAllowed": false,
+  "PrivacySandboxAdTopicsEnabled": false,
+  "PrivacySandboxSiteEnabledAdsEnabled": false,
+  "PrivacySandboxAdMeasurementEnabled": false,
+  "ShoppingListEnabled": false,
 PRIVACY_JSON
 )
 
-# --- Nag suppression: standard Chromium policy for "what's new" pages after OS upgrades
-# (PromotionalTabsEnabled was dropped upstream — Brave now reports it "Deprecated", so it's omitted)
+# --- Nag suppression: standard Chromium policies for "what's new" pages after OS upgrades, the
+# default-browser prompt, promotional content, and in-product surveys (PromotionalTabsEnabled was dropped upstream —
+# Brave now reports it "Deprecated" — so its replacement PromotionsEnabled is used instead)
 NAG_KEYS=$(cat <<'NAG_JSON'
   "WelcomePageOnOSUpgradeEnabled": false,
+  "DefaultBrowserSettingEnabled": false,
+  "PromotionsEnabled": false,
+  "FeedbackSurveysEnabled": false,
 NAG_JSON
 )
 
@@ -135,14 +153,32 @@ PERF_KEYS=$(cat <<'PERF_JSON'
 PERF_JSON
 )
 
-# --- Aggressive (opt-in): disables features some people actually rely on, so off by default
+# --- Aggressive (opt-in): disables features some people actually rely on, so off by default,
+# and turns on Memory Saver (background tabs get discarded and reload when you switch back)
 AGGRESSIVE_KEYS=$(cat <<'AGGRESSIVE_JSON'
   "SyncDisabled": true,
   "PasswordManagerEnabled": false,
   "AutofillAddressEnabled": false,
   "AutofillCreditCardEnabled": false,
   "TranslateEnabled": false,
+  "HighEfficiencyModeEnabled": true,
 AGGRESSIVE_JSON
+)
+
+# --- Paranoid (opt-in): hardening that changes behaviour you'll notice (no Tor windows, no
+# Chromecast, sites relying on third-party cookies break, plain-HTTP sites need a click-through),
+# plus locking Brave's De-AMP, debouncing, and language fingerprinting protection on
+PARANOID_KEYS=$(cat <<'PARANOID_JSON'
+  "TorDisabled": true,
+  "EnableMediaRouter": false,
+  "BlockThirdPartyCookies": true,
+  "HttpsOnlyMode": "force_enabled",
+  "PaymentMethodQueryEnabled": false,
+  "BrowserSignin": 0,
+  "BraveDeAmpEnabled": true,
+  "BraveDebouncingEnabled": true,
+  "BraveReduceLanguageEnabled": true,
+PARANOID_JSON
 )
 
 BODY="${CORE_KEYS}
@@ -154,6 +190,11 @@ ${PERF_KEYS}"
 if [[ "$AGGRESSIVE" -eq 1 ]]; then
   BODY="${BODY}
 ${AGGRESSIVE_KEYS}"
+fi
+
+if [[ "$PARANOID" -eq 1 ]]; then
+  BODY="${BODY}
+${PARANOID_KEYS}"
 fi
 
 # Strip the trailing comma off the last entry so the object is valid JSON.
@@ -188,9 +229,12 @@ fi
 echo
 echo "Applied managed policy to: $POLICY_FILE"
 if [[ "$AGGRESSIVE" -eq 1 ]]; then
-  echo "Mode: aggressive (sync, autofill, password manager, translate also disabled)"
+  echo "Mode: aggressive (sync, autofill, password manager, translate also disabled; Memory Saver on)"
 else
   echo "Mode: core (re-run with --aggressive to also disable sync/autofill/password manager/translate)"
+fi
+if [[ "$PARANOID" -eq 1 ]]; then
+  echo "Paranoid: on (Tor, Cast, third-party cookies, Google sign-in, payment probing off; HTTPS forced; De-AMP, debouncing, language fingerprinting protection locked on)"
 fi
 echo
 echo "Quit and reopen Brave, then check brave://policy to confirm."
