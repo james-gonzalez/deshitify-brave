@@ -15,7 +15,7 @@ enforcement works.
 
 ```bash
 ./deshitify-brave.sh                # apply core + privacy + leak + performance policies
-./deshitify-brave.sh --aggressive   # also disable sync, autofill, password manager, translate
+./deshitify-brave.sh --aggressive   # also disable sync, autofill, password manager, translate; enable Memory Saver
 ./deshitify-brave.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
 ./deshitify-brave.sh --dry-run      # print the plist that would be written, change nothing
 ./deshitify-brave.sh --undo         # remove the managed policy, restore stock Brave
@@ -29,7 +29,7 @@ and relaunch Brave for you.
 
 ```powershell
 .\deshitify-brave.ps1                # apply core + privacy + leak + performance policies
-.\deshitify-brave.ps1 -Aggressive    # also disable sync, autofill, password manager, translate
+.\deshitify-brave.ps1 -Aggressive    # also disable sync, autofill, password manager, translate; enable Memory Saver
 .\deshitify-brave.ps1 -Paranoid      # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
 .\deshitify-brave.ps1 -DryRun        # print the registry values that would be written, change nothing
 .\deshitify-brave.ps1 -Undo          # remove the managed policy, restore stock Brave
@@ -44,7 +44,7 @@ with `powershell -ExecutionPolicy Bypass -File .\deshitify-brave.ps1`.
 
 ```bash
 ./deshitify-brave-linux.sh                # apply core + privacy + leak + performance policies
-./deshitify-brave-linux.sh --aggressive   # also disable sync, autofill, password manager, translate
+./deshitify-brave-linux.sh --aggressive   # also disable sync, autofill, password manager, translate; enable Memory Saver
 ./deshitify-brave-linux.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
 ./deshitify-brave-linux.sh --dry-run      # print the JSON that would be written, change nothing
 ./deshitify-brave-linux.sh --undo         # remove the managed policy, restore stock Brave
@@ -96,6 +96,7 @@ should show status **OK**.
 | "What's new" page after OS/browser upgrades | `WelcomePageOnOSUpgradeEnabled` |
 | "Make Brave your default browser" prompt | `DefaultBrowserSettingEnabled` |
 | Promotional content and tabs | `PromotionsEnabled` |
+| In-product surveys | `FeedbackSurveysEnabled` |
 
 **Data leaks** (always applied)
 | What it stops | Policy |
@@ -120,6 +121,7 @@ some people rely on day to day, so they're off unless you ask for them:
 | Address autofill | `AutofillAddressEnabled` |
 | Credit card autofill | `AutofillCreditCardEnabled` |
 | Translate | `TranslateEnabled` |
+| Turns on Memory Saver (background tabs are discarded and reload when revisited) | `HighEfficiencyModeEnabled` |
 
 **Paranoid, opt-in only** (`--paranoid`) — hardening that changes behaviour
 you'll notice, so it's off unless you ask for it. Combine with `--aggressive`
@@ -132,6 +134,9 @@ for both:
 | Forces HTTPS-only mode | `HttpsOnlyMode` |
 | Stops sites probing for saved payment methods | `PaymentMethodQueryEnabled` |
 | Disables Google sign-in integration | `BrowserSignin` |
+| Locks De-AMP on (skip Google-hosted AMP pages) | `BraveDeAmpEnabled` |
+| Locks debouncing on (skip tracking redirect URLs) | `BraveDebouncingEnabled` |
+| Locks language fingerprinting protection on | `BraveReduceLanguageEnabled` |
 
 **Deliberately left alone**: component updates, ad-block list fetches, and
 Safe Browsing list downloads still reach Brave's/Google's servers — blocking

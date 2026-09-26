@@ -16,11 +16,13 @@
     your organization" — that's expected, it's how policy enforcement works.
 
 .PARAMETER Aggressive
-    Also disable sync, autofill, password manager, and translate.
+    Also disable sync, autofill, password manager, and translate, and turn on
+    Memory Saver.
 
 .PARAMETER Paranoid
     Also harden: disable Tor windows, Google Cast, third-party cookies, Google
-    sign-in, and payment-method probing, and force HTTPS-only mode.
+    sign-in, and payment-method probing, force HTTPS-only mode, and lock Brave's
+    De-AMP, debouncing, and language fingerprinting protection on.
 
 .PARAMETER DryRun
     Print the registry values that would be written, change nothing.
@@ -88,12 +90,13 @@ $PrivacyKeys = [ordered]@{
 }
 
 # --- Nag suppression: standard Chromium policies for "what's new" pages after OS upgrades, the
-# default-browser prompt, and promotional content (PromotionalTabsEnabled was dropped upstream —
+# default-browser prompt, promotional content, and in-product surveys (PromotionalTabsEnabled was dropped upstream —
 # Brave now reports it "Deprecated" — so its replacement PromotionsEnabled is used instead)
 $NagKeys = [ordered]@{
     WelcomePageOnOSUpgradeEnabled = @{ Type = 'DWord'; Value = 0 }
     DefaultBrowserSettingEnabled  = @{ Type = 'DWord'; Value = 0 }
     PromotionsEnabled             = @{ Type = 'DWord'; Value = 0 }
+    FeedbackSurveysEnabled        = @{ Type = 'DWord'; Value = 0 }
 }
 
 # --- Leak plugging: stop small background data leaks (keystrokes to search engine, error-page
@@ -113,17 +116,20 @@ $PerfKeys = [ordered]@{
     NetworkPredictionOptions = @{ Type = 'DWord'; Value = 2 }
 }
 
-# --- Aggressive (opt-in): disables features some people actually rely on, so off by default
+# --- Aggressive (opt-in): disables features some people actually rely on, so off by default,
+# and turns on Memory Saver (background tabs get discarded and reload when you switch back)
 $AggressiveKeys = [ordered]@{
     SyncDisabled             = @{ Type = 'DWord'; Value = 1 }
     PasswordManagerEnabled   = @{ Type = 'DWord'; Value = 0 }
     AutofillAddressEnabled   = @{ Type = 'DWord'; Value = 0 }
     AutofillCreditCardEnabled = @{ Type = 'DWord'; Value = 0 }
     TranslateEnabled         = @{ Type = 'DWord'; Value = 0 }
+    HighEfficiencyModeEnabled = @{ Type = 'DWord'; Value = 1 }
 }
 
 # --- Paranoid (opt-in): hardening that changes behaviour you'll notice (no Tor windows, no
-# Chromecast, sites relying on third-party cookies break, plain-HTTP sites need a click-through)
+# Chromecast, sites relying on third-party cookies break, plain-HTTP sites need a click-through),
+# plus locking Brave's De-AMP, debouncing, and language fingerprinting protection on
 $ParanoidKeys = [ordered]@{
     TorDisabled               = @{ Type = 'DWord'; Value = 1 }
     EnableMediaRouter         = @{ Type = 'DWord'; Value = 0 }
@@ -131,6 +137,9 @@ $ParanoidKeys = [ordered]@{
     HttpsOnlyMode             = @{ Type = 'String'; Value = 'force_enabled' }
     PaymentMethodQueryEnabled = @{ Type = 'DWord'; Value = 0 }
     BrowserSignin             = @{ Type = 'DWord'; Value = 0 }
+    BraveDeAmpEnabled         = @{ Type = 'DWord'; Value = 1 }
+    BraveDebouncingEnabled    = @{ Type = 'DWord'; Value = 1 }
+    BraveReduceLanguageEnabled = @{ Type = 'DWord'; Value = 1 }
 }
 
 $Policies = [ordered]@{}
@@ -245,12 +254,12 @@ foreach ($name in $Policies.Keys) {
 Write-Host ''
 Write-Host "Applied managed policy to: $PolicyKeyDisplay"
 if ($Aggressive) {
-    Write-Host 'Mode: aggressive (sync, autofill, password manager, translate also disabled)'
+    Write-Host 'Mode: aggressive (sync, autofill, password manager, translate also disabled; Memory Saver on)'
 } else {
     Write-Host 'Mode: core (re-run with -Aggressive to also disable sync/autofill/password manager/translate)'
 }
 if ($Paranoid) {
-    Write-Host 'Paranoid: on (Tor, Cast, third-party cookies, Google sign-in, payment probing off; HTTPS forced)'
+    Write-Host 'Paranoid: on (Tor, Cast, third-party cookies, Google sign-in, payment probing off; HTTPS forced; De-AMP, debouncing, language fingerprinting protection locked on)'
 }
 Write-Host ''
 Write-Host 'Quit and reopen Brave, then check brave://policy to confirm.'

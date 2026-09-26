@@ -5,7 +5,7 @@
 #
 # Usage:
 #   ./deshitify-brave.sh                # apply core + privacy policies
-#   ./deshitify-brave.sh --aggressive   # also disable sync/autofill/password manager/translate
+#   ./deshitify-brave.sh --aggressive   # also disable sync/autofill/password manager/translate, enable Memory Saver
 #   ./deshitify-brave.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
 #   ./deshitify-brave.sh --dry-run      # print the plist that would be written, change nothing
 #   ./deshitify-brave.sh --undo         # remove the managed policy and restore defaults
@@ -128,7 +128,7 @@ EOF
 )
 
 # --- Nag suppression: standard Chromium policies for "what's new" pages after OS upgrades, the
-# default-browser prompt, and promotional content (PromotionalTabsEnabled was dropped upstream —
+# default-browser prompt, promotional content, and in-product surveys (PromotionalTabsEnabled was dropped upstream —
 # Brave now reports it "Deprecated" — so its replacement PromotionsEnabled is used instead)
 NAG_KEYS=$(cat <<'EOF'
     <key>WelcomePageOnOSUpgradeEnabled</key>
@@ -136,6 +136,8 @@ NAG_KEYS=$(cat <<'EOF'
     <key>DefaultBrowserSettingEnabled</key>
     <false/>
     <key>PromotionsEnabled</key>
+    <false/>
+    <key>FeedbackSurveysEnabled</key>
     <false/>
 EOF
 )
@@ -165,7 +167,8 @@ PERF_KEYS=$(cat <<'EOF'
 EOF
 )
 
-# --- Aggressive (opt-in): disables features some people actually rely on, so off by default
+# --- Aggressive (opt-in): disables features some people actually rely on, so off by default,
+# and turns on Memory Saver (background tabs get discarded and reload when you switch back)
 AGGRESSIVE_KEYS=$(cat <<'EOF'
     <key>SyncDisabled</key>
     <true/>
@@ -177,11 +180,14 @@ AGGRESSIVE_KEYS=$(cat <<'EOF'
     <false/>
     <key>TranslateEnabled</key>
     <false/>
+    <key>HighEfficiencyModeEnabled</key>
+    <true/>
 EOF
 )
 
 # --- Paranoid (opt-in): hardening that changes behaviour you'll notice (no Tor windows, no
-# Chromecast, sites relying on third-party cookies break, plain-HTTP sites need a click-through)
+# Chromecast, sites relying on third-party cookies break, plain-HTTP sites need a click-through),
+# plus locking Brave's De-AMP, debouncing, and language fingerprinting protection on
 PARANOID_KEYS=$(cat <<'EOF'
     <key>TorDisabled</key>
     <true/>
@@ -195,6 +201,12 @@ PARANOID_KEYS=$(cat <<'EOF'
     <false/>
     <key>BrowserSignin</key>
     <integer>0</integer>
+    <key>BraveDeAmpEnabled</key>
+    <true/>
+    <key>BraveDebouncingEnabled</key>
+    <true/>
+    <key>BraveReduceLanguageEnabled</key>
+    <true/>
 EOF
 )
 
@@ -242,12 +254,12 @@ sudo killall cfprefsd 2>/dev/null || true
 echo
 echo "Applied managed policy to: $POLICY_FILE"
 if [[ "$AGGRESSIVE" -eq 1 ]]; then
-  echo "Mode: aggressive (sync, autofill, password manager, translate also disabled)"
+  echo "Mode: aggressive (sync, autofill, password manager, translate also disabled; Memory Saver on)"
 else
   echo "Mode: core (re-run with --aggressive to also disable sync/autofill/password manager/translate)"
 fi
 if [[ "$PARANOID" -eq 1 ]]; then
-  echo "Paranoid: on (Tor, Cast, third-party cookies, Google sign-in, payment probing off; HTTPS forced)"
+  echo "Paranoid: on (Tor, Cast, third-party cookies, Google sign-in, payment probing off; HTTPS forced; De-AMP, debouncing, language fingerprinting protection locked on)"
 fi
 echo
 echo "Quit and reopen Brave, then check brave://policy to confirm."
