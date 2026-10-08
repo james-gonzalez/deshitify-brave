@@ -1,75 +1,69 @@
 # deshitify-brave
 
-Scripts (macOS + Windows + Linux) that strip Brave Browser's upsell nags (Rewards,
-Wallet, VPN, Leo AI, News) and quietly plug a few privacy leaks (telemetry,
-WebRTC IP leaks, keystroke-leaking search suggestions) — all via Chromium's
-managed policy mechanism, the same one MDM/GPO uses. No MDM/GPO required.
+[![CI](https://github.com/james-gonzalez/deshitify-brave/actions/workflows/ci.yml/badge.svg)](https://github.com/james-gonzalez/deshitify-brave/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/james-gonzalez/deshitify-brave)](https://github.com/james-gonzalez/deshitify-brave/releases/latest)
 
-Policy-managed settings show up as "managed by your organization" and are
-greyed out in `brave://settings` — that's expected, it's how policy
-enforcement works.
+One script per OS (macOS, Windows, Linux) that removes Brave Browser's upsell
+nags (Rewards, Wallet, VPN, Leo AI, News), turns off telemetry, and plugs a few
+privacy leaks (WebRTC IP leak, keystroke-leaking search suggestions).
 
-## Usage
+It works through Chromium's **managed policy** mechanism, the same one MDM/GPO
+uses, so no MDM or GPO is needed. Policy-controlled settings show as "managed by
+your organization" and are greyed out in `brave://settings`. That is expected.
 
-**macOS** (`deshitify-brave.sh`):
+## Quick start
+
+Grab the script for your OS from the
+[latest release](https://github.com/james-gonzalez/deshitify-brave/releases/latest)
+(or clone this repo), then run it:
+
+| OS | Script | Run |
+| --- | --- | --- |
+| macOS | `deshitify-brave.sh` | `./deshitify-brave.sh` |
+| Linux | `deshitify-brave-linux.sh` | `./deshitify-brave-linux.sh` |
+| Windows | `deshitify-brave.ps1` | `.\deshitify-brave.ps1` |
+
+It asks for elevation (sudo password, or a UAC prompt on Windows), writes the
+policy, then offers to quit and relaunch Brave. Policies take effect on the next
+launch.
+
+To preview without changing anything, add the dry-run flag. To see what is
+currently applied, use the show flag. To get back to stock Brave, add the undo
+flag (see below).
+
+## Options
+
+The default run applies the **core** policies. Everything else is opt-in and
+combinable.
+
+| Option (macOS / Linux) | Option (Windows) | Adds |
+| --- | --- | --- |
+| *(none)* | *(none)* | Core: upsells, telemetry, nags, data leaks, baseline performance |
+| `--aggressive` | `-Aggressive` | Disables sync, password manager, autofill, translate |
+| `--paranoid` | `-Paranoid` | Hardening: no Tor/Cast/3P cookies/Google sign-in, forces HTTPS |
+| `--performance` | `-Performance` | Trades responsiveness for memory and battery (Memory Saver, battery saver) |
+| `--skip KEY[,KEY]` | `-Skip KEY[,KEY]` | Leaves the named policies out (repeatable; unknown names are rejected) |
+| `--show` | `-Show` | Prints the policy currently applied; changes nothing and needs no elevation |
+| `--dry-run` | `-DryRun` | Prints what would be written; changes nothing |
+| `--undo` | `-Undo` | Removes the policy and restores stock Brave |
+| `--flatpak` (Linux only) | n/a | Also grants a Flatpak install read access to the policy dir |
+
+Examples:
 
 ```bash
-./deshitify-brave.sh                # apply core + privacy + leak + performance policies
-./deshitify-brave.sh --aggressive   # also disable sync, autofill, password manager, translate
-./deshitify-brave.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
-./deshitify-brave.sh --performance  # also trade memory for speed: Memory Saver at max savings, battery saver
-./deshitify-brave.sh --dry-run      # print the plist that would be written, change nothing
-./deshitify-brave.sh --undo         # remove the managed policy, restore stock Brave
+./deshitify-brave.sh --aggressive --paranoid --dry-run
+./deshitify-brave.sh --skip NetworkPredictionOptions   # keep prefetching on
 ```
 
-You'll be prompted for your password — writing to macOS's Managed
-Preferences directory requires `sudo`. At the end, the script offers to quit
-and relaunch Brave for you.
+If PowerShell blocks the script, run it once with
+`powershell -ExecutionPolicy Bypass -File .\deshitify-brave.ps1`.
 
-**Windows** (`deshitify-brave.ps1`):
+## What gets set
 
-```powershell
-.\deshitify-brave.ps1                # apply core + privacy + leak + performance policies
-.\deshitify-brave.ps1 -Aggressive    # also disable sync, autofill, password manager, translate
-.\deshitify-brave.ps1 -Paranoid      # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
-.\deshitify-brave.ps1 -Performance   # also trade memory for speed: Memory Saver at max savings, battery saver
-.\deshitify-brave.ps1 -DryRun        # print the registry values that would be written, change nothing
-.\deshitify-brave.ps1 -Undo          # remove the managed policy, restore stock Brave
-```
+### Core (always applied)
 
-Writing to `HKEY_LOCAL_MACHINE` needs Administrator — the script relaunches
-itself elevated (a UAC prompt) if it isn't already. At the end, it offers to
-quit and relaunch Brave for you. If script execution is blocked, run once
-with `powershell -ExecutionPolicy Bypass -File .\deshitify-brave.ps1`.
+**Upsell surfaces**
 
-**Linux** (`deshitify-brave-linux.sh`):
-
-```bash
-./deshitify-brave-linux.sh                # apply core + privacy + leak + performance policies
-./deshitify-brave-linux.sh --aggressive   # also disable sync, autofill, password manager, translate
-./deshitify-brave-linux.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
-./deshitify-brave-linux.sh --performance  # also trade memory for speed: Memory Saver at max savings, battery saver
-./deshitify-brave-linux.sh --dry-run      # print the JSON that would be written, change nothing
-./deshitify-brave-linux.sh --undo         # remove the managed policy, restore stock Brave
-./deshitify-brave-linux.sh --flatpak      # also grant a Flatpak install read access to the policy dir
-```
-
-You'll be prompted for your password — writing to `/etc/brave/policies/managed/`
-requires `sudo`. At the end, the script offers to quit and relaunch Brave for
-you. Flatpak's sandbox can't see `/etc` by default, so add `--flatpak` (with
-`--undo --flatpak` to revert) if you installed Brave that way.
-
-Verify it worked by opening `brave://policy` in Brave — every listed key
-should show status **OK**, or **Deprecated** for the three `PrivacySandbox*`
-keys, which are still applied. Bear in mind that **OK** means Brave parsed the
-policy and applied it to a preference; it does not prove the feature behind it
-still exists. A key Brave doesn't recognise at all is simply absent from the
-page rather than flagged, which is why `tests/validate-policies.py` checks the
-key names against upstream rather than trusting this page alone.
-
-## What it disables
-
-**Upsell surfaces** (always applied)
 | Feature | Policy |
 | --- | --- |
 | Brave Rewards | `BraveRewardsDisabled` |
@@ -81,7 +75,8 @@ key names against upstream rather than trusting this page alone.
 | Brave Playlist | `BravePlaylistEnabled` |
 | Wayback Machine prompt | `BraveWaybackMachineEnabled` |
 
-**Telemetry** (always applied)
+**Telemetry**
+
 | What it stops | Policy |
 | --- | --- |
 | P3A "anonymous" usage pings | `BraveP3AEnabled` |
@@ -97,41 +92,42 @@ key names against upstream rather than trusting this page alone.
 | Privacy Sandbox ad measurement | `PrivacySandboxAdMeasurementEnabled` |
 | Shopping list / price tracking | `ShoppingListEnabled` |
 
-**Nags** (always applied)
+**Nags**
+
 | What it stops | Policy |
 | --- | --- |
 | "Make Brave your default browser" prompt | `DefaultBrowserSettingEnabled` |
 | Promotional content and tabs | `PromotionsEnabled` |
 | In-product surveys | `FeedbackSurveysEnabled` |
 
-**Data leaks** (always applied)
+**Data leaks**
+
 | What it stops | Policy |
 | --- | --- |
 | Keystrokes sent to your search engine as you type | `SearchSuggestEnabled` |
 | Failed-page lookups sent to Google | `AlternateErrorPagesEnabled` |
-| Safe Browsing "Enhanced" (streams visited URLs to Google) — capped at Standard | `SafeBrowsingProtectionLevel` |
+| Safe Browsing "Enhanced" (streams visited URLs to Google), capped at Standard | `SafeBrowsingProtectionLevel` |
 | WebRTC leaking your real IP behind a VPN | `WebRtcIPHandling` |
 
-**Performance** (always applied)
+**Baseline performance**
+
 | What it does | Policy |
 | --- | --- |
-| Stops Brave running as a background process after you quit it (Linux/Windows only — Chromium has no macOS support for it) | `BackgroundModeEnabled` |
-| Stops preloading/prefetching pages it guesses you'll click | `NetworkPredictionOptions` |
+| Stops Brave running in the background after you quit (Linux/Windows only; Chromium has no macOS support) | `BackgroundModeEnabled` |
+| Stops prefetching pages it guesses you'll click | `NetworkPredictionOptions` |
 | Locks GPU acceleration on | `HardwareAccelerationModeEnabled` |
-| Coalesces background-tab JavaScript timers to once a minute after 5 minutes backgrounded | `IntensiveWakeUpThrottlingEnabled` |
+| Coalesces background-tab JS timers to once a minute after 5 minutes | `IntensiveWakeUpThrottlingEnabled` |
 
-Note that `NetworkPredictionOptions` is a deliberate trade *against* speed —
-prefetching makes pages you're likely to click load faster, at the cost of
-sending Brave's guesses about your next click to the network. The privacy win
-is the point; if you'd rather have the speed, drop that key.
+`NetworkPredictionOptions` trades speed for privacy: prefetching makes likely
+clicks load faster but sends Brave's guesses to the network. If you prefer the
+speed, pass `--skip NetworkPredictionOptions` (`-Skip` on Windows).
+`HardwareAccelerationModeEnabled` already matches Chromium's default, so it
+speeds nothing up; it just stops the setting being changed.
 
-`HardwareAccelerationModeEnabled` and `BatterySaverModeAvailability` below
-already match Chromium's own defaults, so on a stock profile they don't speed
-anything up — they stop the setting being changed, which is the point of
-policy.
+### `--aggressive`
 
-**Aggressive, opt-in only** (`--aggressive`) — these remove functionality
-some people rely on day to day, so they're off unless you ask for them:
+Removes functionality some people rely on daily.
+
 | What it disables | Policy |
 | --- | --- |
 | Sync | `SyncDisabled` |
@@ -140,9 +136,10 @@ some people rely on day to day, so they're off unless you ask for them:
 | Credit card autofill | `AutofillCreditCardEnabled` |
 | Translate | `TranslateEnabled` |
 
-**Paranoid, opt-in only** (`--paranoid`) — hardening that changes behaviour
-you'll notice, so it's off unless you ask for it. Combine with `--aggressive`
-for both:
+### `--paranoid`
+
+Hardening with noticeable behaviour changes.
+
 | What it does | Policy |
 | --- | --- |
 | Disables Tor windows | `TorDisabled` |
@@ -155,127 +152,91 @@ for both:
 | Locks debouncing on (skip tracking redirect URLs) | `BraveDebouncingEnabled` |
 | Locks language fingerprinting protection on | `BraveReduceLanguageEnabled` |
 
-**Performance, opt-in only** (`--performance` / `-Performance`) — trades
-responsiveness for memory and battery, so it's off unless you ask for it.
-Combine freely with `--aggressive` and `--paranoid`:
+### `--performance`
+
+Trades responsiveness for memory and battery.
+
 | What it does | Policy |
 | --- | --- |
-| Turns on Memory Saver (background tabs are discarded and reload when revisited) | `HighEfficiencyModeEnabled` |
-| Sets Memory Saver to maximum savings (tabs are discarded sooner) | `MemorySaverModeSavings` |
-| Enables battery saver once the battery is low (throttles frame rate) | `BatterySaverModeAvailability` |
+| Turns on Memory Saver (background tabs are discarded) | `HighEfficiencyModeEnabled` |
+| Sets Memory Saver to maximum savings (tabs discarded sooner) | `MemorySaverModeSavings` |
+| Enables battery saver when the battery is low (throttles frame rate) | `BatterySaverModeAvailability` |
 
-A discarded tab stays in the tab strip but is fully unloaded — switching back
-triggers a reload, so you'll see a flash and any unsaved form input in that
-tab is gone. That's the trade; it's why this is a separate tier rather than
-always-on. Memory Saver used to ride along with `--aggressive`; it now lives
-here, so `--aggressive` on its own no longer turns it on.
+A discarded tab stays in the strip but is fully unloaded. Switching back reloads
+it, and unsaved form input in that tab is lost. `BatterySaverModeAvailability`
+matches Chromium's default, so like hardware acceleration it mainly locks the
+setting. Memory Saver used to be part of `--aggressive`; it now lives here.
 
-`TotalMemoryLimitMb` (a hard memory ceiling) is deliberately not set. Brave
-already discards tabs under real memory pressure, which is a better heuristic
-than a number picked without knowing your machine — and Chromium only supports
-that policy on Windows and macOS anyway.
+### Deliberately not touched
 
-**Deliberately left alone**: component updates, ad-block list fetches, and
-Safe Browsing list downloads still reach Brave's/Google's servers — blocking
-them would stop Brave keeping its protections up to date.
+- **Component updates, ad-block list fetches, Safe Browsing list downloads.**
+  Blocking them would stop Brave keeping its protections current.
+- **`TotalMemoryLimitMb`.** A fixed ceiling is worse than Brave's own
+  memory-pressure heuristic, and it is Windows/macOS only.
 
-**Not set, because they no longer change anything.** Every key above is checked
-against upstream Chromium's policy definitions by `tests/validate-policies.py`,
-so a policy that's been renamed or dropped can't sit here looking effective:
+Keys that were once set but no longer do anything (`SafeBrowsingExtendedReportingEnabled`,
+`WelcomePageOnOSUpgradeEnabled`, and the misnamed `WebRtcIPHandlingPolicy`) were
+removed. `tests/validate-policies.py` checks every key against upstream
+Chromium's policy definitions so a renamed or dropped policy can't sit here
+looking effective.
 
-| Policy | Why it's gone |
-| --- | --- |
-| `SafeBrowsingExtendedReportingEnabled` | No effect from Chromium 145 — the feature was removed outright, so Brave sends no such reports however the policy is set. Brave also forces the pref off by default in `brave_profile_prefs.cc`. Note this one still shows **OK** in `brave://policy` because the policy handler survives; only the behaviour behind it is gone. `SafeBrowsingProtectionLevel` is the live control. |
-| `WelcomePageOnOSUpgradeEnabled` | Only ever `chrome.win:45-62`; dead since Chromium 63 on every platform. |
-| `WebRtcIPHandlingPolicy` | Never the real name — the policy is `WebRtcIPHandling`, which is what's set now. |
-| `TotalMemoryLimitMb` | Windows/macOS only, and a fixed ceiling is worse than Brave's own memory-pressure heuristic. |
+## Verify
+
+Run the script with `--show` (`-Show`) to see what it wrote, then open
+`brave://policy` to see what Brave actually loaded. Every listed key should
+show **OK**, or **Deprecated** for the three `PrivacySandbox*` keys (still
+applied). Two caveats:
+
+- **OK** means Brave parsed the policy, not that the feature behind it still exists.
+- A key Brave doesn't recognise is simply absent from the page, not flagged.
+  This is why the validator exists.
 
 ## How it works
 
-Brave is built on Chromium, which supports "managed policy" configuration —
-normally pushed by MDM/GPO in a corporate environment, but readable from a
-plain file too.
+Brave reads Chromium managed policy on launch and enforces it over anything set
+in `brave://settings`. Each script writes the policy to the platform's standard
+location (stable Brave channel):
 
-On **macOS**, the script writes a plist to:
+| OS | Location |
+| --- | --- |
+| macOS | `/Library/Managed Preferences/<you>/com.brave.Browser.plist` |
+| Linux | `/etc/brave/policies/managed/deshitify-brave.json` |
+| Windows | `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave` |
 
-```
-/Library/Managed Preferences/<you>/com.brave.Browser.plist
-```
+Brave's own docs list all supported policies:
+[Group Policy](https://support.brave.app/hc/en-us/articles/360039248271-Group-Policy).
 
-On **Windows**, the script writes DWORD/String values under:
+## Undo
 
-```
-HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave
-```
+Run the same script with the undo flag (`--undo` / `-Undo`).
 
-On **Linux**, the script writes a JSON file to:
+- **macOS:** deletes the plist and flushes the preference cache (`cfprefsd`).
+- **Linux:** deletes the JSON file. If you installed with `--flatpak`, run
+  `--undo --flatpak` to revert that too.
+- **Windows:** removes the registry values it wrote (and the key if nothing else
+  uses it).
 
-```
-/etc/brave/policies/managed/deshitify-brave.json
-```
-
-Brave reads these on launch and enforces whatever's in them, regardless of
-what you'd otherwise set in `brave://settings`. See Brave's own docs on
-[Group Policy](https://support.brave.app/hc/en-us/articles/360039248271-Group-Policy)
-for the full list of supported policies.
-
-## Undoing it
-
-**macOS**:
-
-```bash
-./deshitify-brave.sh --undo
-```
-
-This deletes the policy file and flushes macOS's preference cache
-(`cfprefsd`), handing full control back to `brave://settings`.
-
-**Windows**:
-
-```powershell
-.\deshitify-brave.ps1 -Undo
-```
-
-This removes the values the script wrote from the registry (dropping the
-key too if nothing else uses it), handing full control back to
-`brave://settings`.
-
-**Linux**:
-
-```bash
-./deshitify-brave-linux.sh --undo
-```
-
-This deletes the policy file, handing full control back to
-`brave://settings`.
+Either way, `brave://settings` is fully yours again.
 
 ## Requirements
 
-**macOS**:
-- macOS
-- Brave Browser
-- `sudo` access (the Managed Preferences directory is root-owned)
+- Brave Browser (on Linux: native package, or Flatpak with `--flatpak`)
+- macOS or Linux: `sudo` (the policy locations are root-owned)
+- Windows: Administrator (the script relaunches itself elevated if needed)
 
-**Windows**:
-- Windows
-- Brave Browser
-- Administrator access (`HKEY_LOCAL_MACHINE` is machine-wide)
+## Contributing
 
-**Linux**:
-- Linux
-- Brave Browser (native package, or Flatpak with `--flatpak`)
-- `sudo` access (`/etc/brave/policies/managed/` is root-owned)
+CI lints the scripts (ShellCheck, PSScriptAnalyzer), smoke-tests `--dry-run`
+on Linux, macOS and Windows, and runs `python3 tests/validate-policies.py`
+(add `--online` to check against live upstream definitions). Run it before
+changing any policy key. A weekly workflow repeats the online check and opens an
+issue if upstream renames or drops a key.
 
-## Versioning & releases
-
-Releases are automated with [semantic-release](https://semantic-release.gitbook.io/),
-using its default [Angular commit convention](https://github.com/conventional-changelog/commitlint/tree/master/%40commitlint/config-angular#type-enum)
-(a flavor of [Conventional Commits](https://www.conventionalcommits.org/)).
-Every push to `main` is scanned for commit types, and if there's a releasable
-change, a GitHub Release and tag are cut automatically with
-`deshitify-brave.sh`, `deshitify-brave.ps1`, and `deshitify-brave-linux.sh`
-attached as downloadable assets.
+Releases are automated with [semantic-release](https://semantic-release.gitbook.io/)
+using [Conventional Commits](https://www.conventionalcommits.org/). Each push to
+`main` with a releasable change cuts a GitHub Release with the three scripts
+attached.
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+Apache 2.0. See [LICENSE](LICENSE).
