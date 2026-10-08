@@ -40,6 +40,48 @@ jobs:
           ./deshitify-brave-linux.sh --dry-run --performance | tail -n +3 | python3 -m json.tool > /dev/null
           ./deshitify-brave-linux.sh --dry-run --aggressive --paranoid --performance | tail -n +3 | python3 -m json.tool > /dev/null
 
+      - name: --skip and --show smoke test (Linux)
+        run: |
+          out="$(./deshitify-brave-linux.sh --dry-run --performance --skip NetworkPredictionOptions --skip=BatterySaverModeAvailability,BraveVPNDisabled)"
+          if grep -Eq 'NetworkPredictionOptions|BatterySaverModeAvailability|BraveVPNDisabled' <<<"$out"; then
+            echo "--skip left a skipped key in the output" >&2
+            exit 1
+          fi
+          tail -n +3 <<<"$out" | python3 -m json.tool > /dev/null
+          if ./deshitify-brave-linux.sh --dry-run --skip NotARealPolicy; then
+            echo "Expected --skip to reject an unknown policy name" >&2
+            exit 1
+          fi
+          ./deshitify-brave-linux.sh --show
+
+  macos:
+    name: macOS script
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Dry-run produces a valid plist for every tier
+        run: |
+          for flags in "" "--aggressive" "--paranoid" "--performance" "--aggressive --paranoid --performance"; do
+            # shellcheck disable=SC2086
+            ./deshitify-brave.sh --dry-run $flags | tail -n +3 | plutil -lint -
+          done
+
+      - name: --skip and --show smoke test
+        run: |
+          out="$(./deshitify-brave.sh --dry-run --performance --skip NetworkPredictionOptions --skip=BatterySaverModeAvailability,BraveVPNDisabled)"
+          if grep -Eq 'NetworkPredictionOptions|BatterySaverModeAvailability|BraveVPNDisabled' <<<"$out"; then
+            echo "--skip left a skipped key in the output" >&2
+            exit 1
+          fi
+          tail -n +3 <<<"$out" | plutil -lint -
+          if ./deshitify-brave.sh --dry-run --skip NotARealPolicy; then
+            echo "Expected --skip to reject an unknown policy name" >&2
+            exit 1
+          fi
+          ./deshitify-brave.sh --show
+
   validate-policies:
     name: Policy validation
     runs-on: ubuntu-latest
@@ -86,3 +128,11 @@ jobs:
       - name: Dry-run smoke test (Windows PowerShell 5.1)
         shell: powershell
         run: .\deshitify-brave.ps1 -DryRun
+
+      - name: -Skip and -Show smoke test
+        shell: pwsh
+        run: |
+          $out = .\deshitify-brave.ps1 -DryRun -Performance -Skip NetworkPredictionOptions,BraveVPNDisabled *>&1 | Out-String
+          if ($out -match 'NetworkPredictionOptions|BraveVPNDisabled') { Write-Error '-Skip left a skipped key in the output'; exit 1 }
+          if ($out -notmatch 'HighEfficiencyModeEnabled') { Write-Error 'Expected the other keys to remain'; exit 1 }
+          .\deshitify-brave.ps1 -Show

@@ -27,6 +27,13 @@
     Also trade responsiveness for memory and battery: turn on Memory Saver at
     maximum savings and enable battery saver once the battery is low.
 
+.PARAMETER Skip
+    Leave the named policies out (comma-separated, or repeat the switch value),
+    e.g. -Skip NetworkPredictionOptions. Unknown names are rejected.
+
+.PARAMETER Show
+    Print the policy values currently applied, change nothing.
+
 .PARAMETER DryRun
     Print the registry values that would be written, change nothing.
 
@@ -42,6 +49,10 @@
 .EXAMPLE
     .\deshitify-brave.ps1 -Performance
 .EXAMPLE
+    .\deshitify-brave.ps1 -Skip NetworkPredictionOptions
+.EXAMPLE
+    .\deshitify-brave.ps1 -Show
+.EXAMPLE
     .\deshitify-brave.ps1 -DryRun
 .EXAMPLE
     .\deshitify-brave.ps1 -Undo
@@ -52,6 +63,8 @@ param(
     [switch]$Aggressive,
     [switch]$Paranoid,
     [switch]$Performance,
+    [string[]]$Skip,
+    [switch]$Show,
     [switch]$DryRun,
     [switch]$Undo,
     # Internal: set when the script re-launched itself elevated, so the new
@@ -172,6 +185,15 @@ if ($Performance) {
     foreach ($name in $PerformanceKeys.Keys) { $Policies[$name] = $PerformanceKeys[$name] }
 }
 
+$SkipNames = @($Skip | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+foreach ($name in $SkipNames) {
+    if (-not $Policies.Contains($name)) {
+        Write-Error "-Skip: '$name' isn't in the policy set being applied (check spelling and tier switches)."
+        exit 1
+    }
+    $Policies.Remove($name)
+}
+
 # -Undo removes every value the script can write, opt-in ones included, so a
 # plain -Undo fully reverses a previous -Aggressive/-Paranoid run.
 $ManagedNames = @($CoreKeys.Keys) + @($PrivacyKeys.Keys) + @($NagKeys.Keys) +
@@ -193,6 +215,19 @@ function Test-Administrator {
 if (-not ($IsWindows -or $env:OS -eq 'Windows_NT')) {
     Write-Error 'This script is Windows-only. On macOS use deshitify-brave.sh.'
     exit 1
+}
+
+if ($Show) {
+    if (Test-Path $PolicyKey) {
+        Write-Host "Applied policy ($PolicyKeyDisplay):"
+        $applied = Get-Item $PolicyKey
+        foreach ($name in ($applied.GetValueNames() | Sort-Object)) {
+            Write-Host ('  {0} = {1}' -f $name, $applied.GetValue($name))
+        }
+    } else {
+        Write-Host "No policy key found at $PolicyKeyDisplay."
+    }
+    exit 0
 }
 
 $BravePaths = @(
@@ -229,6 +264,7 @@ if (-not (Test-Administrator)) {
     if ($Aggressive) { $psArgs += '-Aggressive' }
     if ($Paranoid) { $psArgs += '-Paranoid' }
     if ($Performance) { $psArgs += '-Performance' }
+    if ($SkipNames.Count) { $psArgs += '-Skip'; $psArgs += "`"$($SkipNames -join ',')`"" }
     if ($Undo) { $psArgs += '-Undo' }
     try {
         $proc = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList $psArgs -Verb RunAs -PassThru -Wait

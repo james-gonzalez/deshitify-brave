@@ -9,7 +9,9 @@
 #   ./deshitify-brave-linux.sh --aggressive   # also disable sync/autofill/password manager/translate
 #   ./deshitify-brave-linux.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
 #   ./deshitify-brave-linux.sh --performance  # also trade memory for speed: Memory Saver at max savings, battery saver
+#   ./deshitify-brave-linux.sh --skip KEY     # leave one policy out (repeatable, or comma-separated)
 #   ./deshitify-brave-linux.sh --dry-run      # print the JSON that would be written, change nothing
+#   ./deshitify-brave-linux.sh --show         # print the policy currently applied, change nothing
 #   ./deshitify-brave-linux.sh --undo         # remove the managed policy and restore defaults
 #
 # What this does:
@@ -38,29 +40,52 @@ AGGRESSIVE=0
 PARANOID=0
 PERFORMANCE=0
 FLATPAK=0
+SHOW=0
+SKIP_LIST=""
 
-for arg in "$@"; do
-  case "$arg" in
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --dry-run) DRY_RUN=1 ;;
     --undo) UNDO=1 ;;
+    --show) SHOW=1 ;;
     --aggressive) AGGRESSIVE=1 ;;
     --paranoid) PARANOID=1 ;;
     --performance) PERFORMANCE=1 ;;
+    --skip)
+      if [[ $# -lt 2 ]]; then
+        echo "--skip needs a policy name" >&2
+        exit 1
+      fi
+      SKIP_LIST="${SKIP_LIST},$2"
+      shift
+      ;;
+    --skip=*) SKIP_LIST="${SKIP_LIST},${1#--skip=}" ;;
     --flatpak) FLATPAK=1 ;;
     -h|--help)
-      sed -n '2,27p' "$0"
+      sed -n '2,29p' "$0"
       exit 0
       ;;
     *)
-      echo "Unknown option: $arg" >&2
+      echo "Unknown option: $1" >&2
       exit 1
       ;;
   esac
+  shift
 done
 
 if [[ "$(uname)" != "Linux" ]]; then
   echo "This script is Linux-only. On macOS use deshitify-brave.sh, on Windows use deshitify-brave.ps1." >&2
   exit 1
+fi
+
+if [[ "$SHOW" -eq 1 ]]; then
+  if [[ -f "$POLICY_FILE" ]]; then
+    echo "Applied policy ($POLICY_FILE):"
+    cat "$POLICY_FILE"
+  else
+    echo "No managed policy file found at $POLICY_FILE."
+  fi
+  exit 0
 fi
 
 BRAVE_BIN=""
@@ -214,6 +239,17 @@ fi
 if [[ "$PERFORMANCE" -eq 1 ]]; then
   BODY="${BODY}
 ${PERFORMANCE_KEYS}"
+fi
+
+if [[ -n "$SKIP_LIST" ]]; then
+  IFS=, read -ra SKIP_NAMES <<<"${SKIP_LIST#,}"
+  for name in "${SKIP_NAMES[@]}"; do
+    if [[ ! "$name" =~ ^[A-Za-z0-9]+$ ]] || ! grep -q "^  \"${name}\":" <<<"$BODY"; then
+      echo "--skip: '$name' isn't in the policy set being applied (check spelling and tier flags)." >&2
+      exit 1
+    fi
+    BODY="$(grep -v "^  \"${name}\":" <<<"$BODY")"
+  done
 fi
 
 # Strip the trailing comma off the last entry so the object is valid JSON.
