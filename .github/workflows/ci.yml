@@ -37,6 +37,23 @@ jobs:
         run: |
           ./deshitify-brave-linux.sh --dry-run
           ./deshitify-brave-linux.sh --dry-run --aggressive | tail -n +3 | python3 -m json.tool > /dev/null
+          ./deshitify-brave-linux.sh --dry-run --performance | tail -n +3 | python3 -m json.tool > /dev/null
+          ./deshitify-brave-linux.sh --dry-run --aggressive --paranoid --performance | tail -n +3 | python3 -m json.tool > /dev/null
+
+  validate-policies:
+    name: Policy validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Offline checks (tier parity, undo coverage)
+        run: python3 tests/validate-policies.py
+
+      - name: Cross-reference keys against upstream Chromium policy definitions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tests/validate-policies.py --online
 
   lint-windows:
     name: PSScriptAnalyzer

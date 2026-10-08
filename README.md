@@ -15,8 +15,9 @@ enforcement works.
 
 ```bash
 ./deshitify-brave.sh                # apply core + privacy + leak + performance policies
-./deshitify-brave.sh --aggressive   # also disable sync, autofill, password manager, translate; enable Memory Saver
+./deshitify-brave.sh --aggressive   # also disable sync, autofill, password manager, translate
 ./deshitify-brave.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
+./deshitify-brave.sh --performance  # also trade memory for speed: Memory Saver at max savings, battery saver
 ./deshitify-brave.sh --dry-run      # print the plist that would be written, change nothing
 ./deshitify-brave.sh --undo         # remove the managed policy, restore stock Brave
 ```
@@ -29,8 +30,9 @@ and relaunch Brave for you.
 
 ```powershell
 .\deshitify-brave.ps1                # apply core + privacy + leak + performance policies
-.\deshitify-brave.ps1 -Aggressive    # also disable sync, autofill, password manager, translate; enable Memory Saver
+.\deshitify-brave.ps1 -Aggressive    # also disable sync, autofill, password manager, translate
 .\deshitify-brave.ps1 -Paranoid      # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
+.\deshitify-brave.ps1 -Performance   # also trade memory for speed: Memory Saver at max savings, battery saver
 .\deshitify-brave.ps1 -DryRun        # print the registry values that would be written, change nothing
 .\deshitify-brave.ps1 -Undo          # remove the managed policy, restore stock Brave
 ```
@@ -44,8 +46,9 @@ with `powershell -ExecutionPolicy Bypass -File .\deshitify-brave.ps1`.
 
 ```bash
 ./deshitify-brave-linux.sh                # apply core + privacy + leak + performance policies
-./deshitify-brave-linux.sh --aggressive   # also disable sync, autofill, password manager, translate; enable Memory Saver
+./deshitify-brave-linux.sh --aggressive   # also disable sync, autofill, password manager, translate
 ./deshitify-brave-linux.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
+./deshitify-brave-linux.sh --performance  # also trade memory for speed: Memory Saver at max savings, battery saver
 ./deshitify-brave-linux.sh --dry-run      # print the JSON that would be written, change nothing
 ./deshitify-brave-linux.sh --undo         # remove the managed policy, restore stock Brave
 ./deshitify-brave-linux.sh --flatpak      # also grant a Flatpak install read access to the policy dir
@@ -83,7 +86,6 @@ should show status **OK**.
 | URL-keyed "anonymized" data collection | `UrlKeyedAnonymizedDataCollectionEnabled` |
 | Google web spell check (local spell check still works) | `SpellCheckServiceEnabled` |
 | Feedback reports with screenshots/system info | `UserFeedbackAllowed` |
-| Safe Browsing extended reporting to Google | `SafeBrowsingExtendedReportingEnabled` |
 | Domain-reliability uploads to Google | `DomainReliabilityAllowed` |
 | Privacy Sandbox ad topics | `PrivacySandboxAdTopicsEnabled` |
 | Privacy Sandbox site-suggested ads | `PrivacySandboxSiteEnabledAdsEnabled` |
@@ -93,7 +95,6 @@ should show status **OK**.
 **Nags** (always applied)
 | What it stops | Policy |
 | --- | --- |
-| "What's new" page after OS/browser upgrades | `WelcomePageOnOSUpgradeEnabled` |
 | "Make Brave your default browser" prompt | `DefaultBrowserSettingEnabled` |
 | Promotional content and tabs | `PromotionsEnabled` |
 | In-product surveys | `FeedbackSurveysEnabled` |
@@ -104,13 +105,25 @@ should show status **OK**.
 | Keystrokes sent to your search engine as you type | `SearchSuggestEnabled` |
 | Failed-page lookups sent to Google | `AlternateErrorPagesEnabled` |
 | Safe Browsing "Enhanced" (streams visited URLs to Google) — capped at Standard | `SafeBrowsingProtectionLevel` |
-| WebRTC leaking your real IP behind a VPN | `WebRtcIPHandlingPolicy` |
+| WebRTC leaking your real IP behind a VPN | `WebRtcIPHandling` |
 
 **Performance** (always applied)
-| What it stops | Policy |
+| What it does | Policy |
 | --- | --- |
-| Brave running as a background process after you quit it | `BackgroundModeEnabled` |
-| Preloading/prefetching pages it guesses you'll click | `NetworkPredictionOptions` |
+| Stops Brave running as a background process after you quit it (Linux/Windows only — Chromium has no macOS support for it) | `BackgroundModeEnabled` |
+| Stops preloading/prefetching pages it guesses you'll click | `NetworkPredictionOptions` |
+| Locks GPU acceleration on | `HardwareAccelerationModeEnabled` |
+| Coalesces background-tab JavaScript timers to once a minute after 5 minutes backgrounded | `IntensiveWakeUpThrottlingEnabled` |
+
+Note that `NetworkPredictionOptions` is a deliberate trade *against* speed —
+prefetching makes pages you're likely to click load faster, at the cost of
+sending Brave's guesses about your next click to the network. The privacy win
+is the point; if you'd rather have the speed, drop that key.
+
+`HardwareAccelerationModeEnabled` and `BatterySaverModeAvailability` below
+already match Chromium's own defaults, so on a stock profile they don't speed
+anything up — they stop the setting being changed, which is the point of
+policy.
 
 **Aggressive, opt-in only** (`--aggressive`) — these remove functionality
 some people rely on day to day, so they're off unless you ask for them:
@@ -121,7 +134,6 @@ some people rely on day to day, so they're off unless you ask for them:
 | Address autofill | `AutofillAddressEnabled` |
 | Credit card autofill | `AutofillCreditCardEnabled` |
 | Translate | `TranslateEnabled` |
-| Turns on Memory Saver (background tabs are discarded and reload when revisited) | `HighEfficiencyModeEnabled` |
 
 **Paranoid, opt-in only** (`--paranoid`) — hardening that changes behaviour
 you'll notice, so it's off unless you ask for it. Combine with `--aggressive`
@@ -138,9 +150,40 @@ for both:
 | Locks debouncing on (skip tracking redirect URLs) | `BraveDebouncingEnabled` |
 | Locks language fingerprinting protection on | `BraveReduceLanguageEnabled` |
 
+**Performance, opt-in only** (`--performance` / `-Performance`) — trades
+responsiveness for memory and battery, so it's off unless you ask for it.
+Combine freely with `--aggressive` and `--paranoid`:
+| What it does | Policy |
+| --- | --- |
+| Turns on Memory Saver (background tabs are discarded and reload when revisited) | `HighEfficiencyModeEnabled` |
+| Sets Memory Saver to maximum savings (tabs are discarded sooner) | `MemorySaverModeSavings` |
+| Enables battery saver once the battery is low (throttles frame rate) | `BatterySaverModeAvailability` |
+
+A discarded tab stays in the tab strip but is fully unloaded — switching back
+triggers a reload, so you'll see a flash and any unsaved form input in that
+tab is gone. That's the trade; it's why this is a separate tier rather than
+always-on. Memory Saver used to ride along with `--aggressive`; it now lives
+here, so `--aggressive` on its own no longer turns it on.
+
+`TotalMemoryLimitMb` (a hard memory ceiling) is deliberately not set. Brave
+already discards tabs under real memory pressure, which is a better heuristic
+than a number picked without knowing your machine — and Chromium only supports
+that policy on Windows and macOS anyway.
+
 **Deliberately left alone**: component updates, ad-block list fetches, and
 Safe Browsing list downloads still reach Brave's/Google's servers — blocking
 them would stop Brave keeping its protections up to date.
+
+**Not set, because Chromium ignores them.** Every key above is checked against
+upstream Chromium's policy definitions by `tests/validate-policies.py`, so a
+policy that's been renamed or dropped can't sit here looking effective:
+
+| Policy | Why it's gone |
+| --- | --- |
+| `SafeBrowsingExtendedReportingEnabled` | No effect from Chromium 145 — the feature was removed outright, so Brave no longer sends these reports however the policy is set. `SafeBrowsingProtectionLevel` is the live control. |
+| `WelcomePageOnOSUpgradeEnabled` | Only ever `chrome.win:45-62`; dead since Chromium 63 on every platform. |
+| `WebRtcIPHandlingPolicy` | Never the real name — the policy is `WebRtcIPHandling`, which is what's set now. |
+| `TotalMemoryLimitMb` | Windows/macOS only, and a fixed ceiling is worse than Brave's own memory-pressure heuristic. |
 
 ## How it works
 

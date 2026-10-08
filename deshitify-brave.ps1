@@ -16,13 +16,16 @@
     your organization" — that's expected, it's how policy enforcement works.
 
 .PARAMETER Aggressive
-    Also disable sync, autofill, password manager, and translate, and turn on
-    Memory Saver.
+    Also disable sync, autofill, password manager, and translate.
 
 .PARAMETER Paranoid
     Also harden: disable Tor windows, Google Cast, third-party cookies, Google
     sign-in, and payment-method probing, force HTTPS-only mode, and lock Brave's
     De-AMP, debouncing, and language fingerprinting protection on.
+
+.PARAMETER Performance
+    Also trade responsiveness for memory and battery: turn on Memory Saver at
+    maximum savings and enable battery saver once the battery is low.
 
 .PARAMETER DryRun
     Print the registry values that would be written, change nothing.
@@ -37,6 +40,8 @@
 .EXAMPLE
     .\deshitify-brave.ps1 -Paranoid
 .EXAMPLE
+    .\deshitify-brave.ps1 -Performance
+.EXAMPLE
     .\deshitify-brave.ps1 -DryRun
 .EXAMPLE
     .\deshitify-brave.ps1 -Undo
@@ -46,6 +51,7 @@
 param(
     [switch]$Aggressive,
     [switch]$Paranoid,
+    [switch]$Performance,
     [switch]$DryRun,
     [switch]$Undo,
     # Internal: set when the script re-launched itself elevated, so the new
@@ -81,7 +87,6 @@ $PrivacyKeys = [ordered]@{
     UrlKeyedAnonymizedDataCollectionEnabled = @{ Type = 'DWord'; Value = 0 }
     SpellCheckServiceEnabled                = @{ Type = 'DWord'; Value = 0 }
     UserFeedbackAllowed                     = @{ Type = 'DWord'; Value = 0 }
-    SafeBrowsingExtendedReportingEnabled    = @{ Type = 'DWord'; Value = 0 }
     DomainReliabilityAllowed                = @{ Type = 'DWord'; Value = 0 }
     PrivacySandboxAdTopicsEnabled           = @{ Type = 'DWord'; Value = 0 }
     PrivacySandboxSiteEnabledAdsEnabled     = @{ Type = 'DWord'; Value = 0 }
@@ -89,11 +94,10 @@ $PrivacyKeys = [ordered]@{
     ShoppingListEnabled                     = @{ Type = 'DWord'; Value = 0 }
 }
 
-# --- Nag suppression: standard Chromium policies for "what's new" pages after OS upgrades, the
-# default-browser prompt, promotional content, and in-product surveys (PromotionalTabsEnabled was dropped upstream —
-# Brave now reports it "Deprecated" — so its replacement PromotionsEnabled is used instead)
+# --- Nag suppression: standard Chromium policies for the default-browser prompt, promotional
+# content, and in-product surveys. PromotionsEnabled (Chromium 128+) is used rather than the
+# older PromotionalTabsEnabled, which upstream now flags Deprecated.
 $NagKeys = [ordered]@{
-    WelcomePageOnOSUpgradeEnabled = @{ Type = 'DWord'; Value = 0 }
     DefaultBrowserSettingEnabled  = @{ Type = 'DWord'; Value = 0 }
     PromotionsEnabled             = @{ Type = 'DWord'; Value = 0 }
     FeedbackSurveysEnabled        = @{ Type = 'DWord'; Value = 0 }
@@ -106,25 +110,27 @@ $LeakKeys = [ordered]@{
     SearchSuggestEnabled        = @{ Type = 'DWord'; Value = 0 }
     AlternateErrorPagesEnabled  = @{ Type = 'DWord'; Value = 0 }
     SafeBrowsingProtectionLevel = @{ Type = 'DWord'; Value = 1 }
-    WebRtcIPHandlingPolicy      = @{ Type = 'String'; Value = 'default_public_interface_only' }
+    WebRtcIPHandling            = @{ Type = 'String'; Value = 'default_public_interface_only' }
 }
 
-# --- Performance: stop Brave running as a background process after you quit it, and stop
-# preloading/prefetching pages it guesses you'll click next (saves network + battery)
+# --- Performance: stop Brave running as a background process after you quit it, stop
+# preloading/prefetching pages it guesses you'll click next (saves network + battery),
+# keep GPU acceleration on, and force background-tab JavaScript timers to be coalesced
+# to once a minute after 5 minutes backgrounded (real CPU/battery saving on many tabs)
 $PerfKeys = [ordered]@{
-    BackgroundModeEnabled    = @{ Type = 'DWord'; Value = 0 }
-    NetworkPredictionOptions = @{ Type = 'DWord'; Value = 2 }
+    BackgroundModeEnabled            = @{ Type = 'DWord'; Value = 0 }
+    NetworkPredictionOptions         = @{ Type = 'DWord'; Value = 2 }
+    HardwareAccelerationModeEnabled  = @{ Type = 'DWord'; Value = 1 }
+    IntensiveWakeUpThrottlingEnabled = @{ Type = 'DWord'; Value = 1 }
 }
 
-# --- Aggressive (opt-in): disables features some people actually rely on, so off by default,
-# and turns on Memory Saver (background tabs get discarded and reload when you switch back)
+# --- Aggressive (opt-in): disables features some people actually rely on, so off by default
 $AggressiveKeys = [ordered]@{
-    SyncDisabled             = @{ Type = 'DWord'; Value = 1 }
-    PasswordManagerEnabled   = @{ Type = 'DWord'; Value = 0 }
-    AutofillAddressEnabled   = @{ Type = 'DWord'; Value = 0 }
+    SyncDisabled              = @{ Type = 'DWord'; Value = 1 }
+    PasswordManagerEnabled    = @{ Type = 'DWord'; Value = 0 }
+    AutofillAddressEnabled    = @{ Type = 'DWord'; Value = 0 }
     AutofillCreditCardEnabled = @{ Type = 'DWord'; Value = 0 }
-    TranslateEnabled         = @{ Type = 'DWord'; Value = 0 }
-    HighEfficiencyModeEnabled = @{ Type = 'DWord'; Value = 1 }
+    TranslateEnabled          = @{ Type = 'DWord'; Value = 0 }
 }
 
 # --- Paranoid (opt-in): hardening that changes behaviour you'll notice (no Tor windows, no
@@ -142,6 +148,16 @@ $ParanoidKeys = [ordered]@{
     BraveReduceLanguageEnabled = @{ Type = 'DWord'; Value = 1 }
 }
 
+# --- Performance tier (opt-in): trades responsiveness for memory and battery. Memory Saver
+# discards background tabs — they reload when you switch back, so you'll see a flash and
+# unsaved form input in a discarded tab is lost. Savings level 2 discards them sooner.
+# Battery saver throttles the frame rate once the battery is low.
+$PerformanceKeys = [ordered]@{
+    HighEfficiencyModeEnabled    = @{ Type = 'DWord'; Value = 1 }
+    MemorySaverModeSavings       = @{ Type = 'DWord'; Value = 2 }
+    BatterySaverModeAvailability = @{ Type = 'DWord'; Value = 1 }
+}
+
 $Policies = [ordered]@{}
 foreach ($set in @($CoreKeys, $PrivacyKeys, $NagKeys, $LeakKeys, $PerfKeys)) {
     foreach ($name in $set.Keys) { $Policies[$name] = $set[$name] }
@@ -152,12 +168,15 @@ if ($Aggressive) {
 if ($Paranoid) {
     foreach ($name in $ParanoidKeys.Keys) { $Policies[$name] = $ParanoidKeys[$name] }
 }
+if ($Performance) {
+    foreach ($name in $PerformanceKeys.Keys) { $Policies[$name] = $PerformanceKeys[$name] }
+}
 
 # -Undo removes every value the script can write, opt-in ones included, so a
 # plain -Undo fully reverses a previous -Aggressive/-Paranoid run.
 $ManagedNames = @($CoreKeys.Keys) + @($PrivacyKeys.Keys) + @($NagKeys.Keys) +
                 @($LeakKeys.Keys) + @($PerfKeys.Keys) + @($AggressiveKeys.Keys) +
-                @($ParanoidKeys.Keys)
+                @($ParanoidKeys.Keys) + @($PerformanceKeys.Keys)
 
 function Format-RegValue {
     param($Spec)
@@ -209,6 +228,7 @@ if (-not (Test-Administrator)) {
     $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"", '-Elevated')
     if ($Aggressive) { $psArgs += '-Aggressive' }
     if ($Paranoid) { $psArgs += '-Paranoid' }
+    if ($Performance) { $psArgs += '-Performance' }
     if ($Undo) { $psArgs += '-Undo' }
     try {
         $proc = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList $psArgs -Verb RunAs -PassThru -Wait
@@ -254,12 +274,15 @@ foreach ($name in $Policies.Keys) {
 Write-Host ''
 Write-Host "Applied managed policy to: $PolicyKeyDisplay"
 if ($Aggressive) {
-    Write-Host 'Mode: aggressive (sync, autofill, password manager, translate also disabled; Memory Saver on)'
+    Write-Host 'Mode: aggressive (sync, autofill, password manager, translate also disabled)'
 } else {
     Write-Host 'Mode: core (re-run with -Aggressive to also disable sync/autofill/password manager/translate)'
 }
 if ($Paranoid) {
     Write-Host 'Paranoid: on (Tor, Cast, third-party cookies, Google sign-in, payment probing off; HTTPS forced; De-AMP, debouncing, language fingerprinting protection locked on)'
+}
+if ($Performance) {
+    Write-Host 'Performance: on (Memory Saver at maximum savings, battery saver below threshold)'
 }
 Write-Host ''
 Write-Host 'Quit and reopen Brave, then check brave://policy to confirm.'
