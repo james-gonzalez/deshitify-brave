@@ -8,7 +8,9 @@
 #   ./deshitify-brave.sh --aggressive   # also disable sync/autofill/password manager/translate
 #   ./deshitify-brave.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
 #   ./deshitify-brave.sh --performance  # also trade memory for speed: Memory Saver at max savings, battery saver
+#   ./deshitify-brave.sh --skip KEY     # leave one policy out (repeatable, or comma-separated)
 #   ./deshitify-brave.sh --dry-run      # print the plist that would be written, change nothing
+#   ./deshitify-brave.sh --show         # print the policy currently applied, change nothing
 #   ./deshitify-brave.sh --undo         # remove the managed policy and restore defaults
 #
 # What this does:
@@ -35,28 +37,51 @@ UNDO=0
 AGGRESSIVE=0
 PARANOID=0
 PERFORMANCE=0
+SHOW=0
+SKIP_LIST=""
 
-for arg in "$@"; do
-  case "$arg" in
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --dry-run) DRY_RUN=1 ;;
     --undo) UNDO=1 ;;
+    --show) SHOW=1 ;;
     --aggressive) AGGRESSIVE=1 ;;
     --paranoid) PARANOID=1 ;;
     --performance) PERFORMANCE=1 ;;
+    --skip)
+      if [[ $# -lt 2 ]]; then
+        echo "--skip needs a policy name" >&2
+        exit 1
+      fi
+      SKIP_LIST="${SKIP_LIST},$2"
+      shift
+      ;;
+    --skip=*) SKIP_LIST="${SKIP_LIST},${1#--skip=}" ;;
     -h|--help)
-      sed -n '2,24p' "$0"
+      sed -n '2,26p' "$0"
       exit 0
       ;;
     *)
-      echo "Unknown option: $arg" >&2
+      echo "Unknown option: $1" >&2
       exit 1
       ;;
   esac
+  shift
 done
 
 if [[ "$(uname)" != "Darwin" ]]; then
   echo "This script is macOS-only." >&2
   exit 1
+fi
+
+if [[ "$SHOW" -eq 1 ]]; then
+  if [[ -f "$POLICY_FILE" ]]; then
+    echo "Applied policy ($POLICY_FILE):"
+    plutil -p "$POLICY_FILE"
+  else
+    echo "No managed policy file found at $POLICY_FILE."
+  fi
+  exit 0
 fi
 
 if [[ ! -d "/Applications/Brave Browser.app" ]]; then
@@ -244,6 +269,25 @@ fi
 if [[ "$PERFORMANCE" -eq 1 ]]; then
   BODY="${BODY}
 ${PERFORMANCE_KEYS}"
+fi
+
+if [[ -n "$SKIP_LIST" ]]; then
+  IFS=, read -ra SKIP_NAMES <<<"${SKIP_LIST#,}"
+  for name in "${SKIP_NAMES[@]}"; do
+    if [[ ! "$name" =~ ^[A-Za-z0-9]+$ ]] || ! grep -q "<key>${name}</key>" <<<"$BODY"; then
+      echo "--skip: '$name' isn't in the policy set being applied (check spelling and tier flags)." >&2
+      exit 1
+    fi
+  done
+  # Each policy is a <key> line followed by its value line; drop both.
+  BODY="$(awk -v skip="$SKIP_LIST" '
+    BEGIN { n = split(skip, a, ","); for (i = 1; i <= n; i++) if (a[i] != "") s[a[i]] = 1 }
+    drop { drop = 0; next }
+    match($0, /<key>[A-Za-z0-9]+<\/key>/) {
+      if (substr($0, RSTART + 5, RLENGTH - 11) in s) { drop = 1; next }
+    }
+    { print }
+  ' <<<"$BODY")"
 fi
 
 PLIST_CONTENT=$(cat <<EOF
