@@ -5,8 +5,9 @@
 #
 # Usage:
 #   ./deshitify-brave.sh                # apply core + privacy policies
-#   ./deshitify-brave.sh --aggressive   # also disable sync/autofill/password manager/translate, enable Memory Saver
+#   ./deshitify-brave.sh --aggressive   # also disable sync/autofill/password manager/translate
 #   ./deshitify-brave.sh --paranoid     # also harden: no Tor/Cast/3P cookies/Google sign-in, force HTTPS
+#   ./deshitify-brave.sh --performance  # also trade memory for speed: Memory Saver at max savings, battery saver
 #   ./deshitify-brave.sh --dry-run      # print the plist that would be written, change nothing
 #   ./deshitify-brave.sh --undo         # remove the managed policy and restore defaults
 #
@@ -33,6 +34,7 @@ DRY_RUN=0
 UNDO=0
 AGGRESSIVE=0
 PARANOID=0
+PERFORMANCE=0
 
 for arg in "$@"; do
   case "$arg" in
@@ -40,8 +42,9 @@ for arg in "$@"; do
     --undo) UNDO=1 ;;
     --aggressive) AGGRESSIVE=1 ;;
     --paranoid) PARANOID=1 ;;
+    --performance) PERFORMANCE=1 ;;
     -h|--help)
-      sed -n '2,21p' "$0"
+      sed -n '2,24p' "$0"
       exit 0
       ;;
     *)
@@ -112,8 +115,6 @@ PRIVACY_KEYS=$(cat <<'EOF'
     <false/>
     <key>UserFeedbackAllowed</key>
     <false/>
-    <key>SafeBrowsingExtendedReportingEnabled</key>
-    <false/>
     <key>DomainReliabilityAllowed</key>
     <false/>
     <key>PrivacySandboxAdTopicsEnabled</key>
@@ -127,12 +128,10 @@ PRIVACY_KEYS=$(cat <<'EOF'
 EOF
 )
 
-# --- Nag suppression: standard Chromium policies for "what's new" pages after OS upgrades, the
-# default-browser prompt, promotional content, and in-product surveys (PromotionalTabsEnabled was dropped upstream —
-# Brave now reports it "Deprecated" — so its replacement PromotionsEnabled is used instead)
+# --- Nag suppression: standard Chromium policies for the default-browser prompt, promotional
+# content, and in-product surveys. PromotionsEnabled (Chromium 128+) is used rather than the
+# older PromotionalTabsEnabled, which upstream now flags Deprecated.
 NAG_KEYS=$(cat <<'EOF'
-    <key>WelcomePageOnOSUpgradeEnabled</key>
-    <false/>
     <key>DefaultBrowserSettingEnabled</key>
     <false/>
     <key>PromotionsEnabled</key>
@@ -152,23 +151,27 @@ LEAK_KEYS=$(cat <<'EOF'
     <false/>
     <key>SafeBrowsingProtectionLevel</key>
     <integer>1</integer>
-    <key>WebRtcIPHandlingPolicy</key>
+    <key>WebRtcIPHandling</key>
     <string>default_public_interface_only</string>
 EOF
 )
 
-# --- Performance: stop Brave running as a background process after you quit it, and stop
-# preloading/prefetching pages it guesses you'll click next (saves network + battery)
+# --- Performance: stop preloading/prefetching pages Brave guesses you'll click next (saves
+# network + battery), keep GPU acceleration on, and force background-tab JavaScript timers to
+# be coalesced to once a minute after 5 minutes backgrounded (real CPU/battery saving on many
+# tabs). BackgroundModeEnabled is deliberately absent — Chromium only supports it on Windows
+# and Linux, so it would sit in brave://policy doing nothing on macOS.
 PERF_KEYS=$(cat <<'EOF'
-    <key>BackgroundModeEnabled</key>
-    <false/>
     <key>NetworkPredictionOptions</key>
     <integer>2</integer>
+    <key>HardwareAccelerationModeEnabled</key>
+    <true/>
+    <key>IntensiveWakeUpThrottlingEnabled</key>
+    <true/>
 EOF
 )
 
-# --- Aggressive (opt-in): disables features some people actually rely on, so off by default,
-# and turns on Memory Saver (background tabs get discarded and reload when you switch back)
+# --- Aggressive (opt-in): disables features some people actually rely on, so off by default
 AGGRESSIVE_KEYS=$(cat <<'EOF'
     <key>SyncDisabled</key>
     <true/>
@@ -180,8 +183,6 @@ AGGRESSIVE_KEYS=$(cat <<'EOF'
     <false/>
     <key>TranslateEnabled</key>
     <false/>
-    <key>HighEfficiencyModeEnabled</key>
-    <true/>
 EOF
 )
 
@@ -210,6 +211,20 @@ PARANOID_KEYS=$(cat <<'EOF'
 EOF
 )
 
+# --- Performance tier (opt-in): trades responsiveness for memory and battery. Memory Saver
+# discards background tabs — they reload when you switch back, so you'll see a flash and
+# unsaved form input in a discarded tab is lost. Savings level 2 discards them sooner.
+# Battery saver throttles the frame rate once the battery is low.
+PERFORMANCE_KEYS=$(cat <<'EOF'
+    <key>HighEfficiencyModeEnabled</key>
+    <true/>
+    <key>MemorySaverModeSavings</key>
+    <integer>2</integer>
+    <key>BatterySaverModeAvailability</key>
+    <integer>1</integer>
+EOF
+)
+
 BODY="${CORE_KEYS}
 ${PRIVACY_KEYS}
 ${NAG_KEYS}
@@ -224,6 +239,11 @@ fi
 if [[ "$PARANOID" -eq 1 ]]; then
   BODY="${BODY}
 ${PARANOID_KEYS}"
+fi
+
+if [[ "$PERFORMANCE" -eq 1 ]]; then
+  BODY="${BODY}
+${PERFORMANCE_KEYS}"
 fi
 
 PLIST_CONTENT=$(cat <<EOF
@@ -254,12 +274,15 @@ sudo killall cfprefsd 2>/dev/null || true
 echo
 echo "Applied managed policy to: $POLICY_FILE"
 if [[ "$AGGRESSIVE" -eq 1 ]]; then
-  echo "Mode: aggressive (sync, autofill, password manager, translate also disabled; Memory Saver on)"
+  echo "Mode: aggressive (sync, autofill, password manager, translate also disabled)"
 else
   echo "Mode: core (re-run with --aggressive to also disable sync/autofill/password manager/translate)"
 fi
 if [[ "$PARANOID" -eq 1 ]]; then
   echo "Paranoid: on (Tor, Cast, third-party cookies, Google sign-in, payment probing off; HTTPS forced; De-AMP, debouncing, language fingerprinting protection locked on)"
+fi
+if [[ "$PERFORMANCE" -eq 1 ]]; then
+  echo "Performance: on (Memory Saver at maximum savings, battery saver below threshold)"
 fi
 echo
 echo "Quit and reopen Brave, then check brave://policy to confirm."
