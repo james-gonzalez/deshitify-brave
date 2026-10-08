@@ -60,7 +60,12 @@ you. Flatpak's sandbox can't see `/etc` by default, so add `--flatpak` (with
 `--undo --flatpak` to revert) if you installed Brave that way.
 
 Verify it worked by opening `brave://policy` in Brave — every listed key
-should show status **OK**.
+should show status **OK**, or **Deprecated** for the three `PrivacySandbox*`
+keys, which are still applied. Bear in mind that **OK** means Brave parsed the
+policy and applied it to a preference; it does not prove the feature behind it
+still exists. A key Brave doesn't recognise at all is simply absent from the
+page rather than flagged, which is why `tests/validate-policies.py` checks the
+key names against upstream rather than trusting this page alone.
 
 ## What it disables
 
@@ -174,13 +179,13 @@ that policy on Windows and macOS anyway.
 Safe Browsing list downloads still reach Brave's/Google's servers — blocking
 them would stop Brave keeping its protections up to date.
 
-**Not set, because Chromium ignores them.** Every key above is checked against
-upstream Chromium's policy definitions by `tests/validate-policies.py`, so a
-policy that's been renamed or dropped can't sit here looking effective:
+**Not set, because they no longer change anything.** Every key above is checked
+against upstream Chromium's policy definitions by `tests/validate-policies.py`,
+so a policy that's been renamed or dropped can't sit here looking effective:
 
 | Policy | Why it's gone |
 | --- | --- |
-| `SafeBrowsingExtendedReportingEnabled` | No effect from Chromium 145 — the feature was removed outright, so Brave no longer sends these reports however the policy is set. `SafeBrowsingProtectionLevel` is the live control. |
+| `SafeBrowsingExtendedReportingEnabled` | No effect from Chromium 145 — the feature was removed outright, so Brave sends no such reports however the policy is set. Brave also forces the pref off by default in `brave_profile_prefs.cc`. Note this one still shows **OK** in `brave://policy` because the policy handler survives; only the behaviour behind it is gone. `SafeBrowsingProtectionLevel` is the live control. |
 | `WelcomePageOnOSUpgradeEnabled` | Only ever `chrome.win:45-62`; dead since Chromium 63 on every platform. |
 | `WebRtcIPHandlingPolicy` | Never the real name — the policy is `WebRtcIPHandling`, which is what's set now. |
 | `TotalMemoryLimitMb` | Windows/macOS only, and a fixed ceiling is worse than Brave's own memory-pressure heuristic. |

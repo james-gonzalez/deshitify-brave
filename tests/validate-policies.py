@@ -198,11 +198,14 @@ else:
                 if lo > TARGET_CHROMIUM:
                     bad.append((key, f"needs Chromium {lo} ({t})"))
                 elif hi is not None and hi < TARGET_CHROMIUM:
-                    bad.append((key, f"removed after Chromium {hi} ({t})"))
+                    # Brave may still register a handler for such a policy, so
+                    # brave://policy can show it OK; the behaviour behind it is
+                    # what has gone, which the page cannot tell you.
+                    bad.append((key, f"support ended at Chromium {hi} ({t})"))
         print(f"  {plat:8s} {len(keys):>2} keys  {'all live' if not bad else str(len(bad)) + ' INERT'}")
         for key, why in bad:
             print(f"           !! {key}: {why}")
-            fail(f"{plat}: {key} is ignored by Brave -- {why}")
+            fail(f"{plat}: {key} -- {why}")
 
 print()
 print("=" * 72)
